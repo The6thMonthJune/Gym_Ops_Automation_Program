@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from shutil
+import shutil
 from pathlib import Path
 
 from src.core.file_naming import build_next_date_path

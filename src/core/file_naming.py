@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
-DATE_PATTERN = re.compile(r"(?P<month>\d{1, 2})\.(?P<day>\d{1,2})")
+DATE_PATTERN = re.compile(r"(?P<month>\d{1,2})\.(?P<day>\d{1,2})")
 
 @dataclass(frozen=True)
 class ParsedFilenameDate:
@@ -40,7 +40,7 @@ def build_next_date_filename(file_path: str | Path, year: int | None) -> str:
     path = Path(file_path)
     filename = path.name
 
-    parsed = extract_month_day_from_filename(file)
+    parsed = extract_date_from_filename(filename)
     current_year = year or date.today().year
     current_date = parsed.to_date(current_year)
     next_date = current_date + timedelta(days = 1)
