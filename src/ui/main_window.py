@@ -25,6 +25,7 @@ from src.services.sales_report_service import (
     read_sales_values,
 )
 from src.ui.payment_dialog import PaymentDialog
+from src.ui.settings_dialog import SettingsDialog
 from src.config.constants import APP_NAME
 from src.config.settings import (
     load_settings,
@@ -124,6 +125,12 @@ class MainWindow(QMainWindow):
         payment_button.clicked.connect(self.handle_open_payment_dialog)
         main_layout.addWidget(payment_button)
 
+        main_layout.addSpacing(8)
+
+        settings_button = QPushButton("⚙ 설정")
+        settings_button.clicked.connect(self.handle_open_settings)
+        main_layout.addWidget(settings_button)
+
         central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
 
@@ -188,6 +195,9 @@ class MainWindow(QMainWindow):
             self.report_output.setPlainText(report_text)
         except Exception as exc:
             QMessageBox.critical(self, "오류", str(exc))
+
+    def handle_open_settings(self) -> None:
+        SettingsDialog(parent=self).exec()
 
     def handle_open_payment_dialog(self) -> None:
         dialog = PaymentDialog(

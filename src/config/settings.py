@@ -7,9 +7,11 @@ from pathlib import Path
 _SETTINGS_DIR = Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드자동화"
 _SETTINGS_FILE = _SETTINGS_DIR / "settings.json"
 
+# 설정 키
 _KEY_TEMPLATE_FILE = "template_file"
 _KEY_DAILY_FILE = "daily_file"
 _KEY_TOTAL_SALES_FILE = "total_sales_file"
+_KEY_TOTAL_SALES_PASSWORD = "total_sales_password"
 
 
 def load_settings() -> dict:
@@ -27,3 +29,7 @@ def save_settings(settings: dict) -> None:
         json.dumps(settings, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def get_password() -> str | None:
+    return load_settings().get(_KEY_TOTAL_SALES_PASSWORD) or None

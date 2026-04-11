@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtWidgets import QAbstractButton
 
 from src.services.entry_service import PaymentEntry, write_entry_to_daily, write_entry_to_total_sales
-from src.config.constants import TOTAL_SALES_PASSWORD
+from src.config.settings import get_password
 
 _MEMBERSHIP_TYPES = ["신규", "재등", "기존"]
 _PAYMENT_METHODS = ["카드", "법인계좌", "일반계좌", "현금"]
@@ -220,7 +220,7 @@ class PaymentDialog(QDialog):
                 row, is_dup = write_entry_to_total_sales(
                     self.total_sales_file,
                     entry,
-                    password=TOTAL_SALES_PASSWORD,
+                    password=get_password(),
                     force=force,
                 )
                 if is_dup:
