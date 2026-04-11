@@ -7,4 +7,7 @@ DEFAULT_TOTAL_CELL = "M8"
 
 APP_NAME = "리와인드 휘트니스 전산 자동화 프로그램"
 WINDOW_WIDTH = 900
-WINDOW_HEIGHT = 600
+WINDOW_HEIGHT = 700
+
+# 총매출 파일 암호. 암호가 없으면 None으로 설정.
+TOTAL_SALES_PASSWORD: str | None = "1Q2W3E"
