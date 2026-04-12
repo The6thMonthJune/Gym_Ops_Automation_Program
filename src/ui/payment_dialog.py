@@ -5,20 +5,21 @@ from datetime import date
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QComboBox,
     QDateEdit,
     QDialog,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QTextEdit,
     QVBoxLayout,
 )
-
-from PySide6.QtWidgets import QAbstractButton
 
 from src.services.entry_service import PaymentEntry, write_entry_to_daily, write_entry_to_total_sales
 from src.config.settings import get_password
@@ -26,6 +27,9 @@ from src.config.settings import get_password
 _MEMBERSHIP_TYPES = ["신규", "재등", "기존"]
 _PAYMENT_METHODS = ["카드", "법인계좌", "일반계좌", "현금"]
 _CATEGORIES = ["헬스", "PT", "PTEV", "락카", "일일권", "GX", "필라테스", "골프"]
+
+# 이 종목을 선택하면 자동으로 '레슨'으로 pre-select
+_LESSON_CATEGORIES = {"PT"}
 
 
 class PaymentDialog(QDialog):
@@ -51,6 +55,23 @@ class PaymentDialog(QDialog):
     def _setup_ui(self) -> None:
         layout = QVBoxLayout()
 
+        # ── 센터 / 레슨 구분 ────────────────────────────────────────
+        section_group = QGroupBox("매출 구분")
+        section_layout = QHBoxLayout()
+
+        self.section_btn_group = QButtonGroup(self)
+        self.radio_center = QRadioButton("센터  (B열~)")
+        self.radio_lesson = QRadioButton("레슨  (P열~)")
+        self.radio_center.setChecked(True)
+        self.section_btn_group.addButton(self.radio_center)
+        self.section_btn_group.addButton(self.radio_lesson)
+
+        section_layout.addWidget(self.radio_center)
+        section_layout.addWidget(self.radio_lesson)
+        section_layout.addStretch()
+        section_group.setLayout(section_layout)
+        layout.addWidget(section_group)
+
         # ── 결제 정보 입력 ──────────────────────────────────────────
         form_group = QGroupBox("결제 정보")
         form = QFormLayout()
@@ -73,6 +94,7 @@ class PaymentDialog(QDialog):
         self.category_combo.addItems(_CATEGORIES)
         self.category_combo.setEditable(True)
         self.category_combo.setPlaceholderText("목록에 없으면 직접 입력")
+        self.category_combo.currentTextChanged.connect(self._auto_select_section)
         form.addRow("종목:", self.category_combo)
 
         self.membership_input = QLineEdit()
@@ -128,6 +150,18 @@ class PaymentDialog(QDialog):
 
         self.setLayout(layout)
 
+    # ── 섹션 자동 선택 ────────────────────────────────────────────
+
+    def _auto_select_section(self, category: str) -> None:
+        """종목이 PT/PTEV이면 레슨으로, 그 외엔 센터로 자동 전환한다."""
+        if category.strip() in _LESSON_CATEGORIES:
+            self.radio_lesson.setChecked(True)
+        else:
+            self.radio_center.setChecked(True)
+
+    def _selected_section(self) -> str:
+        return "레슨" if self.radio_lesson.isChecked() else "센터"
+
     # ── 내부 헬퍼 ──────────────────────────────────────────────────
 
     def _collect_entry(self) -> PaymentEntry | None:
@@ -166,6 +200,7 @@ class PaymentDialog(QDialog):
             membership=membership,
             amount=amount,
             payment_method=self.payment_method_combo.currentText(),
+            section=self._selected_section(),
             approval_number=self.approval_input.text().strip(),
             fc=self.fc_input.text().strip(),
             manager=self.manager_input.text().strip(),
