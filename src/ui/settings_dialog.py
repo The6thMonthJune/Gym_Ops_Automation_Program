@@ -55,8 +55,7 @@ class SettingsDialog(QDialog):
 
     def _load(self) -> None:
         settings = load_settings()
-        pw = settings.get(_KEY_TOTAL_SALES_PASSWORD, "")
-        self.password_input.setText(pw)
+        self.password_input.setText(settings.get(_KEY_TOTAL_SALES_PASSWORD, ""))
 
     def _save(self) -> None:
         settings = load_settings()
