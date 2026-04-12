@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.config.settings import (
+    _KEY_EXPENSE_DAILY_SHEET,
     _KEY_TOTAL_SALES_PASSWORD,
     load_settings,
     save_settings,
@@ -45,6 +46,10 @@ class SettingsDialog(QDialog):
         self.password_input.setPlaceholderText("총매출 파일 비밀번호 (없으면 공란)")
         form.addRow("총매출 파일 비밀번호:", self.password_input)
 
+        self.expense_sheet_input = QLineEdit()
+        self.expense_sheet_input.setPlaceholderText("기본값: 데일리지출 (변경 시에만 입력)")
+        form.addRow("지출 시트 이름:", self.expense_sheet_input)
+
         layout.addLayout(form)
 
         save_button = QPushButton("저장")
@@ -56,10 +61,12 @@ class SettingsDialog(QDialog):
     def _load(self) -> None:
         settings = load_settings()
         self.password_input.setText(settings.get(_KEY_TOTAL_SALES_PASSWORD, ""))
+        self.expense_sheet_input.setText(settings.get(_KEY_EXPENSE_DAILY_SHEET, ""))
 
     def _save(self) -> None:
         settings = load_settings()
         settings[_KEY_TOTAL_SALES_PASSWORD] = self.password_input.text()
+        settings[_KEY_EXPENSE_DAILY_SHEET] = self.expense_sheet_input.text().strip()
         save_settings(settings)
         QMessageBox.information(self, "완료", "설정이 저장되었습니다.")
         self.accept()

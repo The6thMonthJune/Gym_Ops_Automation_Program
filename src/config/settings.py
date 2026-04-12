@@ -12,6 +12,7 @@ _KEY_TEMPLATE_FILE = "template_file"
 _KEY_DAILY_FILE = "daily_file"
 _KEY_TOTAL_SALES_FILE = "total_sales_file"
 _KEY_TOTAL_SALES_PASSWORD = "total_sales_password"
+_KEY_EXPENSE_DAILY_SHEET = "expense_daily_sheet"
 
 
 def load_settings() -> dict:
@@ -33,3 +34,8 @@ def save_settings(settings: dict) -> None:
 
 def get_password() -> str | None:
     return load_settings().get(_KEY_TOTAL_SALES_PASSWORD) or None
+
+
+def get_expense_daily_sheet() -> str:
+    """데일리 파일의 지출 시트 이름을 반환한다. 미설정 시 기본값 '데일리지출'."""
+    return load_settings().get(_KEY_EXPENSE_DAILY_SHEET, "") or "데일리지출"

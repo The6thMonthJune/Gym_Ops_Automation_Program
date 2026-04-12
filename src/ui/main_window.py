@@ -116,6 +116,13 @@ class MainWindow(QMainWindow):
 
         main_layout.addSpacing(8)
 
+        # ── 지출 입력 ────────────────────────────────────────────────
+        expense_button = QPushButton("💸 지출 입력 및 카톡 문구 생성")
+        expense_button.clicked.connect(self.handle_open_expense_dialog)
+        main_layout.addWidget(expense_button)
+
+        main_layout.addSpacing(4)
+
         # ── 결제 입력 ────────────────────────────────────────────────
         main_layout.addWidget(QLabel("총매출 엑셀 파일"))
         main_layout.addLayout(self._build_file_row(
@@ -198,6 +205,15 @@ class MainWindow(QMainWindow):
 
     def handle_open_settings(self) -> None:
         SettingsDialog(parent=self).exec()
+
+    def handle_open_expense_dialog(self) -> None:
+        from src.ui.expense_dialog import ExpenseDialog
+        dialog = ExpenseDialog(
+            daily_file=self.report_file_input.text().strip() or None,
+            total_sales_file=self.total_sales_file_input.text().strip() or None,
+            parent=self,
+        )
+        dialog.exec()
 
     def handle_open_payment_dialog(self) -> None:
         dialog = PaymentDialog(
