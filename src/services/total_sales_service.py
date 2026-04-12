@@ -39,6 +39,33 @@ def find_monthly_sheet(wb, year: int, month: int) -> str:
     return find_monthly_sheet_name(wb.sheetnames, year, month)
 
 
+def find_monthly_expense_sheet_name(sheet_names: list[str], year: int, month: int) -> str:
+    """
+    시트 이름 목록에서 연도/월에 해당하는 지출 시트명을 찾아 반환한다.
+
+    허용 패턴 예시:
+      '총 지출26년 4월', '총 지출26년 04월', '총 지출25년_9월'
+    """
+    two_digit_year = year % 100
+    year_token = f"{two_digit_year}년"
+    month_tokens = {f"{month}월", f"{month:02d}월"}
+
+    for name in sheet_names:
+        if "지출" not in name:
+            continue
+        if year_token not in name:
+            continue
+        for mt in month_tokens:
+            if mt in name:
+                return name
+
+    raise ValueError(
+        f"{year}년 {month}월에 해당하는 지출 시트를 찾을 수 없습니다.\n"
+        f"파일 내 시트 목록: {', '.join(sheet_names)}\n"
+        f"시트 이름 형식 예시: '총 지출{two_digit_year}년 {month}월'"
+    )
+
+
 def open_workbook(file_path: str | Path, password: str | None = None):
     """
     엑셀 파일을 openpyxl로 열어 반환한다. (읽기 전용 용도)
