@@ -6,8 +6,9 @@ from __future__ import annotations
 데일리 파일과 총매출 파일의 지출 시트에 ExpenseEntry를 기록한다.
 xlwings를 사용해 Excel이 열려 있어도 정상 동작한다.
 
-엑셀 컬럼 구조 (A~I):
-  A: 번호  B: 일자  C: 구분  D: 지출내용  E: 금액  F: 결제  G: 담당자  H: 거래처  I: 기타
+엑셀 컬럼 구조 (B~J):
+  A: 비어있음
+  B: 번호  C: 일자  D: 구분  E: 지출내용  F: 금액  G: 결제  H: 담당자  I: 거래처  J: 기타
 """
 
 from dataclasses import dataclass
@@ -23,15 +24,16 @@ _DAILY_START_ROW = 6
 _TOTAL_START_ROW = 14
 
 # 컬럼 번호 (1-based)
-_COL_NUM = 1   # A: 번호
-_COL_DATE = 2  # B: 일자
-_COL_CAT = 3   # C: 구분
-_COL_DESC = 4  # D: 지출내용
-_COL_AMT = 5   # E: 금액
-_COL_PAY = 6   # F: 결제
-_COL_MGR = 7   # G: 담당자
-_COL_VND = 8   # H: 거래처
-_COL_NOTE = 9  # I: 기타
+# A열은 비어있고 B열부터 데이터가 시작됨
+_COL_NUM = 2   # B: 번호
+_COL_DATE = 3  # C: 일자
+_COL_CAT = 4   # D: 구분
+_COL_DESC = 5  # E: 지출내용
+_COL_AMT = 6   # F: 금액  ← 총합 SUM(F6:F103) 확인
+_COL_PAY = 7   # G: 결제
+_COL_MGR = 8   # H: 담당자
+_COL_VND = 9   # I: 거래처
+_COL_NOTE = 10 # J: 기타
 
 EXPENSE_CATEGORIES = [
     "지점 비품", "수수료", "주차비", "복리후생", "운반비",
@@ -82,8 +84,8 @@ def _open_book(path: str | Path) -> tuple:
 
 
 def _find_next_row(sheet, start_row: int) -> int:
-    """B열(일자)이 비어 있는 첫 번째 행 번호를 반환한다.
-    A열(번호)은 수동 입력 시 비어 있을 수 있으므로 일자 열로 판단한다."""
+    """C열(일자)이 비어 있는 첫 번째 행 번호를 반환한다.
+    B열(번호)에는 미리 채워진 순번이 있을 수 있으므로 일자(C열)로 판단한다."""
     for row in range(start_row, 5000):
         if sheet.range((row, _COL_DATE)).value is None:
             return row
