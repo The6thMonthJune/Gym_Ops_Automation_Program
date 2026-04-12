@@ -19,6 +19,10 @@ PAYMENT_METHOD_EXCEL = {
 # 이 결제수단의 금액은 부가세(10%)가 포함된 것으로 처리한다
 _VAT_INCLUDED_METHODS = {"카드(VAN)", "법인계좌"}
 
+# 센터/레슨 구분에 따른 시작 컬럼 (1-based)
+# 센터: B열(2)부터, 레슨: P열(16)부터, 양식은 동일한 12컬럼
+SECTION_START_COL = {"센터": 2, "레슨": 16}
+
 
 @dataclass
 class PaymentEntry:
@@ -28,6 +32,7 @@ class PaymentEntry:
     membership: str              # 회원권 종류
     amount: int                  # 금액 (부가세 포함)
     payment_method: str          # 카드 / 법인계좌 / 일반계좌 / 현금
+    section: str = "센터"        # 매출 구분: 센터 or 레슨
     approval_number: str = ""    # 카드 승인번호 (선택)
     fc: str = ""                 # FC 담당자 (선택)
     manager: str = ""            # 담당 (선택)
@@ -126,26 +131,29 @@ def check_duplicate(sheet, entry: PaymentEntry, start_row: int = 12) -> bool:
 
 
 def _write_entry_row(sheet, entry: PaymentEntry) -> int:
-    """시트의 다음 빈 행에 결제 내역을 기록하고 행 번호를 반환한다."""
-    row_num = _find_next_entry_row(sheet)
+    """시트의 다음 빈 행에 결제 내역을 기록하고 행 번호를 반환한다.
+    section에 따라 시작 컬럼이 달라진다 (센터: B열, 레슨: P열).
+    """
+    col_start = SECTION_START_COL.get(entry.section, 2)
+    row_num = _find_next_entry_row(sheet, start_row=12)
     entry_datetime = datetime(
         entry.entry_date.year, entry.entry_date.month, entry.entry_date.day
     )
 
-    # B열부터 M열까지 한 번에 기록 (COM 호출 최소화)
-    sheet.range(f"B{row_num}").value = [
-        entry_datetime,                     # B: 계약일
-        entry.entry_date.day,              # C: D(일)
-        entry.name,                        # D: 회원명
-        entry.category,                    # E: 종목
-        entry.membership,                  # F: 회원권 종류
-        entry.amount,                      # G: 금액(부가세)
-        entry.amount_vat_excluded,         # H: 금액(부가제외)
-        entry.payment_method_excel,        # I: 결제
-        entry.approval_number or None,     # J: 승인번호
-        entry.fc or None,                  # K: FC
-        entry.manager or None,             # L: 담당
-        entry.note or None,                # M: 기타
+    # 시작 컬럼부터 12컬럼 한 번에 기록 (COM 호출 최소화)
+    sheet.range((row_num, col_start)).value = [
+        entry_datetime,                     # +0: 계약일
+        entry.entry_date.day,              # +1: 일
+        entry.name,                        # +2: 회원명
+        entry.category,                    # +3: 종목
+        entry.membership,                  # +4: 회원권 종류
+        entry.amount,                      # +5: 금액(부가세)
+        entry.amount_vat_excluded,         # +6: 금액(부가제외)
+        entry.payment_method_excel,        # +7: 결제
+        entry.approval_number or None,     # +8: 승인번호
+        entry.fc or None,                  # +9: FC
+        entry.manager or None,             # +10: 담당
+        entry.note or None,                # +11: 기타
     ]
     return row_num
 

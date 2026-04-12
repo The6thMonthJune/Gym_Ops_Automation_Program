@@ -82,9 +82,10 @@ def _open_book(path: str | Path) -> tuple:
 
 
 def _find_next_row(sheet, start_row: int) -> int:
-    """A열(번호)이 비어 있는 첫 번째 행 번호를 반환한다."""
+    """B열(일자)이 비어 있는 첫 번째 행 번호를 반환한다.
+    A열(번호)은 수동 입력 시 비어 있을 수 있으므로 일자 열로 판단한다."""
     for row in range(start_row, 5000):
-        if sheet.range((row, _COL_NUM)).value is None:
+        if sheet.range((row, _COL_DATE)).value is None:
             return row
     raise ValueError("빈 행을 찾을 수 없습니다.")
 
@@ -95,11 +96,8 @@ def _get_next_number(sheet, start_row: int) -> int:
     last_data_row = next_row - 1
     if last_data_row < start_row:
         return 1
-    nums = sheet.range((start_row, _COL_NUM), (last_data_row, _COL_NUM)).value
-    if not isinstance(nums, list):
-        nums = [nums]
-    valid = [int(n) for n in nums if n is not None]
-    return max(valid) + 1 if valid else 1
+    # 실제 데이터 행 수 기준으로 다음 번호 계산 (A열 번호가 비어있을 수 있음)
+    return last_data_row - start_row + 2
 
 
 def _write_row(sheet, entry: ExpenseEntry, start_row: int) -> int:
