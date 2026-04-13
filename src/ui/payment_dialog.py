@@ -28,8 +28,9 @@ _MEMBERSHIP_TYPES = ["신규", "재등", "기존"]
 _PAYMENT_METHODS = ["카드", "법인계좌", "일반계좌", "현금"]
 _CATEGORIES = ["헬스", "PT", "PTEV", "락카", "일일권", "GX", "필라테스", "골프"]
 
-# 이 종목을 선택하면 자동으로 '레슨'으로 pre-select
-_LESSON_CATEGORIES = {"PT"}
+# 레슨 구분에서만 선택 가능한 종목 (엑셀 수식 인식 기준)
+_LESSON_ONLY_CATEGORIES = ["PT", "필라테스", "골프"]
+_LESSON_CATEGORIES = set(_LESSON_ONLY_CATEGORIES)  # 자동 구분 전환 기준
 
 
 class PaymentDialog(QDialog):
@@ -71,6 +72,8 @@ class PaymentDialog(QDialog):
         section_layout.addStretch()
         section_group.setLayout(section_layout)
         layout.addWidget(section_group)
+
+        self.radio_lesson.toggled.connect(self._on_section_changed)
 
         # ── 결제 정보 입력 ──────────────────────────────────────────
         form_group = QGroupBox("결제 정보")
@@ -152,8 +155,23 @@ class PaymentDialog(QDialog):
 
     # ── 섹션 자동 선택 ────────────────────────────────────────────
 
+    def _on_section_changed(self, lesson_checked: bool) -> None:
+        """레슨/센터 전환 시 종목 콤보박스 목록을 교체한다."""
+        self.category_combo.blockSignals(True)
+        self.category_combo.clear()
+        if lesson_checked:
+            self.category_combo.addItems(_LESSON_ONLY_CATEGORIES)
+            self.category_combo.setEditable(False)
+        else:
+            self.category_combo.addItems(_CATEGORIES)
+            self.category_combo.setEditable(True)
+            self.category_combo.setPlaceholderText("목록에 없으면 직접 입력")
+        self.category_combo.blockSignals(False)
+
     def _auto_select_section(self, category: str) -> None:
-        """종목이 PT/PTEV이면 레슨으로, 그 외엔 센터로 자동 전환한다."""
+        """센터 모드에서 종목이 레슨 전용 항목이면 자동으로 레슨으로 전환한다."""
+        if self.radio_lesson.isChecked():
+            return  # 이미 레슨 모드이면 개입하지 않음
         if category.strip() in _LESSON_CATEGORIES:
             self.radio_lesson.setChecked(True)
         else:
@@ -182,6 +200,12 @@ class PaymentDialog(QDialog):
             return None
         if not category:
             QMessageBox.warning(self, "경고", "종목을 입력해주세요.")
+            return None
+        if self._selected_section() == "레슨" and category not in _LESSON_CATEGORIES:
+            QMessageBox.warning(
+                self, "경고",
+                f"레슨 구분에서는 종목을 {', '.join(_LESSON_ONLY_CATEGORIES)} 중에서만 선택할 수 있습니다."
+            )
             return None
 
         try:
