@@ -90,5 +90,7 @@ def _clear_expense_sheet(ws) -> None:
         if date_val is None and bug_val is None:
             continue  # B열 순번만 있는 빈 행 → 보존
 
-        for col in range(1, 11):  # A–J
+        for col in range(1, 11):  # A–J (B열=2 번호는 보존)
+            if col == 2:
+                continue
             _clear_value(ws.cell(row_num, col))
