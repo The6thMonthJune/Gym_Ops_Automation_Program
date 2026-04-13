@@ -16,9 +16,6 @@ PAYMENT_METHOD_EXCEL = {
     "현금": "현금",
 }
 
-# 이 결제수단의 금액은 부가세(10%)가 포함된 것으로 처리한다
-_VAT_INCLUDED_METHODS = {"카드(VAN)", "법인계좌"}
-
 # 센터/레슨 구분에 따른 시작 컬럼 (1-based)
 # 센터: B열(2)부터, 레슨: P열(16)부터, 양식은 동일한 12컬럼
 SECTION_START_COL = {"센터": 2, "레슨": 16}
@@ -41,12 +38,6 @@ class PaymentEntry:
     @property
     def payment_method_excel(self) -> str:
         return PAYMENT_METHOD_EXCEL.get(self.payment_method, self.payment_method)
-
-    @property
-    def amount_vat_excluded(self) -> float:
-        if self.payment_method_excel in _VAT_INCLUDED_METHODS:
-            return self.amount / 1.1
-        return float(self.amount)
 
 
 # ── xlwings 헬퍼 ────────────────────────────────────────────────────────────
@@ -106,6 +97,43 @@ def _to_list(val) -> list:
     return [val]
 
 
+def _col_letter(n: int) -> str:
+    """1-based 컬럼 번호를 Excel 열 문자로 변환 (1→A, 26→Z, 27→AA)."""
+    result = ""
+    while n > 0:
+        n, remainder = divmod(n - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
+def _vat_formula(section: str, col_start: int, row_num: int) -> str:
+    """부가세 제외 금액 셀에 넣을 Excel 수식을 반환한다.
+    엑셀 원본 양식의 수식과 동일하게 유지해야 다음날 파일 복사 시 양식이 깨지지 않는다.
+    """
+    amt = f"{_col_letter(col_start + 5)}{row_num}"   # 금액(부가세) 셀
+    pay = f"{_col_letter(col_start + 7)}{row_num}"   # 결제방법 셀
+    if section == "레슨":
+        return (
+            f'=IF(OR({pay}="카드(VAN)",{pay}="카드(C-PG)",{pay}="법인계좌",'
+            f'{pay}="네이버페이",{pay}="지역화폐"),{amt}/11*10,{amt})'
+        )
+    # 센터
+    return (
+        f'=IF(OR({pay}="카드(VAN)",{pay}="카드(C-PG)",{pay}="카드(P-PG)"),'
+        f'{amt}/11*10,IF({pay}="네이버페이",{amt}/11*10,'
+        f'IF({pay}="법인계좌",{amt}/11*10,IF({pay}="지역화폐",{amt}/11*10,{amt}))))'
+    )
+
+
+def _date_already_written(sheet, row_num: int, col_start: int, entry_date: date) -> bool:
+    """같은 날짜(datetime)가 col_start 열 12행~row_num-1행 사이에 이미 존재하면 True."""
+    for r in range(12, row_num):
+        val = sheet.range((r, col_start)).value
+        if val is not None and isinstance(val, datetime) and val.date() == entry_date:
+            return True
+    return False
+
+
 def check_duplicate(sheet, entry: PaymentEntry, start_row: int = 12) -> bool:
     """
     같은 날짜(일) + 회원명 + 금액의 항목이 시트에 이미 존재하는지 확인한다.
@@ -148,21 +176,34 @@ def _write_entry_row(sheet, entry: PaymentEntry) -> int:
         entry.entry_date.year, entry.entry_date.month, entry.entry_date.day
     )
 
-    # 시작 컬럼부터 12컬럼 한 번에 기록 (COM 호출 최소화)
+    # 같은 날짜가 이미 위에 기록된 경우 계약일 셀을 비워 날짜 중복 표시 방지
+    date_val = (
+        None
+        if _date_already_written(sheet, row_num, col_start, entry.entry_date)
+        else entry_datetime
+    )
+
+    # +6(부가제외금액)은 Excel 수식으로 별도 입력하므로 여기선 None
     sheet.range((row_num, col_start)).value = [
-        entry_datetime,                     # +0: 계약일
+        date_val,                          # +0: 계약일
         entry.entry_date.day,              # +1: 일
         entry.name,                        # +2: 회원명
         entry.category,                    # +3: 종목
         entry.membership,                  # +4: 회원권 종류
         entry.amount,                      # +5: 금액(부가세)
-        entry.amount_vat_excluded,         # +6: 금액(부가제외)
+        None,                              # +6: 금액(부가제외) — 수식으로 대체
         entry.payment_method_excel,        # +7: 결제
         entry.approval_number or None,     # +8: 승인번호
         entry.fc or None,                  # +9: FC
         entry.manager or None,             # +10: 담당
         entry.note or None,                # +11: 기타
     ]
+
+    # 부가세 제외 금액: 엑셀 원본 양식과 동일한 수식을 삽입
+    sheet.range((row_num, col_start + 6)).formula = _vat_formula(
+        entry.section, col_start, row_num
+    )
+
     return row_num
 
 
