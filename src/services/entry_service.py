@@ -87,10 +87,12 @@ def _open_book(path: str | Path, password: str | None = None) -> tuple:
         raise
 
 
-def _find_next_entry_row(sheet, start_row: int = 12) -> int:
-    """D열(회원명)이 None인 첫 번째 빈 행 번호를 반환한다."""
+def _find_next_entry_row(sheet, start_row: int = 12, col: int = 4) -> int:
+    """지정된 열이 None인 첫 번째 빈 행 번호를 반환한다.
+    col: 1-based 컬럼 번호 (센터=D열=4, 레슨=R열=18)
+    """
     for row_num in range(start_row, 2000):
-        if sheet.range(f"D{row_num}").value is None:
+        if sheet.range((row_num, col)).value is None:
             return row_num
     raise ValueError("빈 행을 찾을 수 없습니다. 엑셀 파일에 입력 행이 부족합니다.")
 
@@ -107,17 +109,22 @@ def _to_list(val) -> list:
 def check_duplicate(sheet, entry: PaymentEntry, start_row: int = 12) -> bool:
     """
     같은 날짜(일) + 회원명 + 금액의 항목이 시트에 이미 존재하는지 확인한다.
-    중복 감지 기준: C열(일), D열(회원명), G열(금액) 세 값이 모두 일치.
+    section에 따라 탐색 컬럼이 달라진다 (센터: C/D/G, 레슨: Q/R/U).
     """
-    next_row = _find_next_entry_row(sheet, start_row)
+    col_start = SECTION_START_COL.get(entry.section, 2)
+    col_day    = col_start + 1   # 센터=C(3), 레슨=Q(17)
+    col_name   = col_start + 2   # 센터=D(4), 레슨=R(18)
+    col_amount = col_start + 5   # 센터=G(7), 레슨=U(21)
+
+    next_row = _find_next_entry_row(sheet, start_row, col=col_name)
     last_data_row = next_row - 1
 
     if last_data_row < start_row:
         return False
 
-    names = _to_list(sheet.range(f"D{start_row}:D{last_data_row}").value)
-    amounts = _to_list(sheet.range(f"G{start_row}:G{last_data_row}").value)
-    days = _to_list(sheet.range(f"C{start_row}:C{last_data_row}").value)
+    names   = _to_list(sheet.range((start_row, col_name),   (last_data_row, col_name)).value)
+    amounts = _to_list(sheet.range((start_row, col_amount), (last_data_row, col_amount)).value)
+    days    = _to_list(sheet.range((start_row, col_day),    (last_data_row, col_day)).value)
 
     for name, amount, day in zip(names, amounts, days):
         if (
@@ -135,7 +142,8 @@ def _write_entry_row(sheet, entry: PaymentEntry) -> int:
     section에 따라 시작 컬럼이 달라진다 (센터: B열, 레슨: P열).
     """
     col_start = SECTION_START_COL.get(entry.section, 2)
-    row_num = _find_next_entry_row(sheet, start_row=12)
+    col_name = col_start + 2  # 회원명 컬럼: 센터=D(4), 레슨=R(18)
+    row_num = _find_next_entry_row(sheet, start_row=12, col=col_name)
     entry_datetime = datetime(
         entry.entry_date.year, entry.entry_date.month, entry.entry_date.day
     )
