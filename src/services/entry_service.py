@@ -126,11 +126,19 @@ def _vat_formula(section: str, col_start: int, row_num: int) -> str:
 
 
 def _date_already_written(sheet, row_num: int, col_start: int, entry_date: date) -> bool:
-    """같은 날짜(datetime)가 col_start 열 12행~row_num-1행 사이에 이미 존재하면 True."""
+    """같은 날짜가 col_start 열 12행~row_num-1행 사이에 이미 존재하면 True.
+    xlwings는 셀 값을 datetime 또는 date로 반환할 수 있으므로 둘 다 처리한다.
+    """
     for r in range(12, row_num):
         val = sheet.range((r, col_start)).value
-        if val is not None and isinstance(val, datetime) and val.date() == entry_date:
-            return True
+        if val is None:
+            continue
+        if isinstance(val, datetime):
+            if val.date() == entry_date:
+                return True
+        elif isinstance(val, date):
+            if val == entry_date:
+                return True
     return False
 
 
