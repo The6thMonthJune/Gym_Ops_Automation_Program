@@ -51,86 +51,103 @@ QFrame#card {{
     border-radius: 8px;
 }}
 
-/* 드롭존 */
+/* 드롭존 — QLabel 자식도 배경 투명 처리 */
 QFrame#drop-zone {{
-    background: #F0F5FF;
+    background-color: #F0F5FF;
     border: 2px dashed {_BLUE};
     border-radius: 6px;
-    min-height: 72px;
+    min-height: 100px;
 }}
 QFrame#drop-zone[drag-hover="true"] {{
-    background: #D6E4FF;
+    background-color: #D6E4FF;
     border-color: #2A5AB3;
+}}
+QFrame#drop-zone QLabel {{
+    background-color: transparent;
+    border: none;
 }}
 
 /* 파일 경로 박스 */
 QFrame#file-path-box {{
-    background: {_BG};
+    background-color: {_BG};
     border: 1px solid {_BORDER};
     border-radius: 4px;
     min-height: 32px;
     max-height: 32px;
 }}
 QFrame#file-path-box[has-file="true"] {{
-    background: #F0F5FF;
+    background-color: #F0F5FF;
     border-color: {_BLUE};
 }}
-QLabel#path-text             {{ color: #9CA3AF; font-size: 11px; background: transparent; }}
-QLabel#path-text[has-file="true"] {{ color: {_NAVY}; }}
+QFrame#file-path-box QLabel {{
+    background-color: transparent;
+    border: none;
+    color: #9CA3AF;
+    font-size: 11px;
+}}
+QFrame#file-path-box[has-file="true"] QLabel {{
+    color: {_NAVY};
+}}
 
 /* 섹션 라벨 */
-QLabel#section-label {{ font-size: 12px; font-weight: 700; color: {_NAVY}; background: transparent; }}
-QLabel#drop-hint     {{ color: #6B7FA8; font-size: 11px; background: transparent; }}
+QLabel#section-label {{
+    font-size: 12px; font-weight: 700; color: {_NAVY};
+    background: transparent; border: none;
+}}
+QLabel#drop-hint {{
+    color: #6B7FA8; font-size: 11px;
+    background: transparent; border: none;
+}}
 
 /* 버튼 공통 */
 QPushButton {{ outline: none; }}
 
 QPushButton#btn-browse {{
-    background: {_BLUE}; color: white; border: none;
+    background-color: {_BLUE}; color: white; border: none;
     border-radius: 4px; font-size: 11px; font-weight: 700;
     min-width: 72px; max-width: 72px; min-height: 32px; max-height: 32px;
 }}
-QPushButton#btn-browse:hover {{ background: #3B5998; }}
+QPushButton#btn-browse:hover {{ background-color: #3B5998; }}
 
 QPushButton#btn-primary {{
-    background: {_NAVY}; color: white; border: none;
+    background-color: {_NAVY}; color: white; border: none;
     border-radius: 6px; font-size: 12px; font-weight: 700;
     min-height: 36px; max-height: 36px;
 }}
-QPushButton#btn-primary:hover {{ background: #2A3F56; }}
+QPushButton#btn-primary:hover {{ background-color: #2A3F56; }}
 
 QPushButton#btn-secondary {{
-    background: {_BG}; color: #374151;
+    background-color: {_BG}; color: #374151;
     border: 1px solid {_BORDER}; border-radius: 6px;
     font-size: 12px; min-height: 36px; max-height: 36px;
 }}
-QPushButton#btn-secondary:hover {{ background: #E9EBF0; }}
+QPushButton#btn-secondary:hover {{ background-color: #E9EBF0; }}
 
 QPushButton#btn-expense {{
-    background: #FFF7ED; color: #EA580C;
+    background-color: #FFF7ED; color: #EA580C;
     border: 1px solid #FED7AA; border-radius: 6px;
-    font-size: 11px; font-weight: 700;
+    font-size: 12px; font-weight: 700;
     min-height: 44px; max-height: 44px;
 }}
-QPushButton#btn-expense:hover {{ background: #FFEDD5; }}
+QPushButton#btn-expense:hover {{ background-color: #FFEDD5; }}
 
 QPushButton#btn-payment {{
-    background: #F0FDF4; color: #16A34A;
+    background-color: #F0FDF4; color: #16A34A;
     border: 1px solid #BBF7D0; border-radius: 6px;
-    font-size: 11px; font-weight: 700;
+    font-size: 12px; font-weight: 700;
     min-height: 44px; max-height: 44px;
 }}
-QPushButton#btn-payment:hover {{ background: #DCFCE7; }}
+QPushButton#btn-payment:hover {{ background-color: #DCFCE7; }}
 
 QPushButton#btn-settings {{
-    background: {_WHITE}; color: #6B7280;
+    background-color: {_WHITE}; color: #6B7280;
     border: 1px solid {_BORDER}; border-radius: 6px;
     font-size: 12px; min-height: 36px; max-height: 36px;
 }}
-QPushButton#btn-settings:hover {{ background: {_BG}; }}
+QPushButton#btn-settings:hover {{ background-color: {_BG}; }}
 
 QTextEdit#result-text {{
-    background: #F9FAFB; border: 1px solid #E5E7EB;
+    background-color: #F9FAFB; border: 1px solid #E5E7EB;
     border-radius: 6px; font-size: 12px; color: {_NAVY};
     padding: 6px;
 }}
@@ -161,6 +178,7 @@ class DropZone(QFrame):
         hint = QLabel("오늘 날짜의 엑셀 파일을 여기에 드래그하거나\n'파일 선택'을 눌러주세요")
         hint.setObjectName("drop-hint")
         hint.setAlignment(Qt.AlignCenter)
+        hint.setWordWrap(True)
 
         layout.addWidget(icon)
         layout.addWidget(hint)
@@ -214,7 +232,14 @@ class FilePathRow(QWidget):
         self._box.setLayout(box_layout)
 
         browse_btn = QPushButton("파일 선택")
-        browse_btn.setObjectName("btn-browse")
+        browse_btn.setFixedSize(72, 32)
+        browse_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {_BLUE}; color: white; border: none;
+                border-radius: 4px; font-size: 11px; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #3B5998; }}
+        """)
         browse_btn.clicked.connect(self.browse_clicked)
 
         layout.addWidget(self._box)
@@ -331,7 +356,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._daily_path_row)
 
         report_btn = QPushButton("↗  매출 보고 문구 생성")
-        report_btn.setObjectName("btn-primary")
+        report_btn.setFixedHeight(36)
+        report_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {_NAVY}; color: white; border: none;
+                border-radius: 6px; font-size: 12px; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #2A3F56; }}
+        """)
         report_btn.clicked.connect(self._generate_report)
         layout.addWidget(report_btn)
 
@@ -352,7 +384,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._result_text)
 
         copy_btn = QPushButton("📋  복사")
-        copy_btn.setObjectName("btn-secondary")
+        copy_btn.setFixedHeight(36)
+        copy_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {_BG}; color: #374151;
+                border: 1px solid {_BORDER}; border-radius: 6px; font-size: 12px;
+            }}
+            QPushButton:hover {{ background-color: #E9EBF0; }}
+        """)
         copy_btn.clicked.connect(self._copy_report)
         layout.addWidget(copy_btn)
 
@@ -363,12 +402,28 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(8)
 
-        expense_btn = QPushButton("🧾  지출 입력\n및 카톡 문구 생성")
-        expense_btn.setObjectName("btn-expense")
+        expense_btn = QPushButton("🧾  지출 입력")
+        expense_btn.setFixedHeight(44)
+        expense_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFF7ED; color: #EA580C;
+                border: 1px solid #FED7AA; border-radius: 6px;
+                font-size: 12px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #FFEDD5; }
+        """)
         expense_btn.clicked.connect(self._open_expense)
 
-        payment_btn = QPushButton("💳  결제 입력\n및 카톡 문구 생성")
-        payment_btn.setObjectName("btn-payment")
+        payment_btn = QPushButton("💳  결제 입력")
+        payment_btn.setFixedHeight(44)
+        payment_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #F0FDF4; color: #16A34A;
+                border: 1px solid #BBF7D0; border-radius: 6px;
+                font-size: 12px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #DCFCE7; }
+        """)
         payment_btn.clicked.connect(self._open_payment)
 
         layout.addWidget(expense_btn)
@@ -391,7 +446,14 @@ class MainWindow(QMainWindow):
 
     def _build_settings_btn(self) -> QPushButton:
         btn = QPushButton("⚙  설정")
-        btn.setObjectName("btn-settings")
+        btn.setFixedHeight(36)
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {_WHITE}; color: #6B7280;
+                border: 1px solid {_BORDER}; border-radius: 6px; font-size: 12px;
+            }}
+            QPushButton:hover {{ background-color: {_BG}; }}
+        """)
         btn.clicked.connect(self._open_settings)
         return btn
 

@@ -13,6 +13,7 @@ _ICON_PATH = Path(__file__).resolve().parents[1] / "assets" / "아이콘.ico"
 
 def main() -> None:
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")  # QSS가 모든 OS에서 일관되게 적용되도록 강제
 
     if _ICON_PATH.exists():
         app.setWindowIcon(QIcon(str(_ICON_PATH)))
