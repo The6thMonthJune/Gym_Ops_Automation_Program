@@ -125,7 +125,7 @@ class PaymentDialog(QDialog):
         form.addRow("담당:", self.manager_input)
 
         self.note_input = QLineEdit()
-        self.note_input.setPlaceholderText("없으면 공란")
+        self.note_input.setPlaceholderText("(선택) - 카톡 보고 문구 전용, 엑셀에는 등록되지 않습니다")
         form.addRow("특이사항:", self.note_input)
 
         form_group.setLayout(form)
@@ -228,7 +228,7 @@ class PaymentDialog(QDialog):
             approval_number=self.approval_input.text().strip(),
             fc=self.fc_input.text().strip(),
             manager=self.manager_input.text().strip(),
-            note=self.note_input.text().strip(),
+            note="",  # 특이사항은 카톡 문구 전용, 엑셀에는 기록하지 않음
         )
 
     # ── 슬롯 ──────────────────────────────────────────────────────
@@ -238,6 +238,7 @@ class PaymentDialog(QDialog):
         if entry is None:
             return
 
+        note = self.note_input.text().strip()
         message = (
             "📌매출보고📌\n\n"
             f"신규/재등 : {self.membership_type_combo.currentText()}\n"
@@ -245,7 +246,7 @@ class PaymentDialog(QDialog):
             f"회원권 : {entry.membership}\n"
             f"금액 : {entry.amount:,}원\n"
             f"결제방법: {entry.payment_method}\n"
-            f"특이사항: {entry.note}"
+            f"특이사항: {note}"
         )
         self.output.setPlainText(message)
 
