@@ -8,7 +8,7 @@ from src.config.constants import WINDOW_WIDTH, WINDOW_HEIGHT
 from src.ui.main_window import MainWindow
 
 # 아이콘 경로: EXE로 빌드된 경우와 개발 환경 모두 대응
-_ICON_PATH = Path(__file__).resolve().parents[1] / "assets" / "icon.ico"
+_ICON_PATH = Path(__file__).resolve().parents[1] / "assets" / "아이콘.ico"
 
 
 def main() -> None:
