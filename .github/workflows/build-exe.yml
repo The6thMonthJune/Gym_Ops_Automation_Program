@@ -44,12 +44,20 @@ jobs:
           path: dist/GymOps.exe
           retention-days: 30
 
-      - name: GitHub Release 생성/업데이트
+      - name: GitHub Release 생성 (태그 푸시 시)
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || '최신 빌드 (latest)' }}
-          prerelease: ${{ github.ref_type != 'tag' }}
-          make_latest: ${{ github.ref_type == 'tag' }}
+          name: ${{ github.ref_name }}
+          make_latest: "true"
+          files: dist/GymOps.exe
+
+      - name: GitHub Release 업데이트 (수동 빌드 시)
+        if: github.ref_type != 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: 최신 빌드 (latest)
+          prerelease: true
           force_create_tag: true
           files: dist/GymOps.exe
