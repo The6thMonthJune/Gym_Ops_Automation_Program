@@ -139,6 +139,14 @@ QPushButton#btn-payment {{
 }}
 QPushButton#btn-payment:hover {{ background-color: #DCFCE7; }}
 
+QPushButton#btn-viewer {{
+    background-color: #EFF6FF; color: #1D4ED8;
+    border: 1px solid #BFDBFE; border-radius: 6px;
+    font-size: 12px; font-weight: 700;
+    min-height: 44px; max-height: 44px;
+}}
+QPushButton#btn-viewer:hover {{ background-color: #DBEAFE; }}
+
 QPushButton#btn-settings {{
     background-color: {_WHITE}; color: #6B7280;
     border: 1px solid {_BORDER}; border-radius: 6px;
@@ -381,7 +389,7 @@ class MainWindow(QMainWindow):
         self._result_text.setObjectName("result-text")
         self._result_text.setReadOnly(True)
         self._result_text.setFixedHeight(140)
-        self._result_text.setPlaceholderText("매출 보고 문구 생성 버튼을 누르면 여기에 카톡 문구가 표시됩니다.")
+        self._result_text.setPlaceholderText("매출 보고 문구 생성 버튼을 누르면 여기에 네이트온 문구가 표시됩니다.")
         layout.addWidget(self._result_text)
 
         copy_btn = QPushButton("📋  복사")
@@ -404,31 +412,20 @@ class MainWindow(QMainWindow):
         layout.setSpacing(8)
 
         expense_btn = QPushButton("🧾  지출 입력")
-        expense_btn.setFixedHeight(44)
-        expense_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FFF7ED; color: #EA580C;
-                border: 1px solid #FED7AA; border-radius: 6px;
-                font-size: 12px; font-weight: bold;
-            }
-            QPushButton:hover { background-color: #FFEDD5; }
-        """)
+        expense_btn.setObjectName("btn-expense")
         expense_btn.clicked.connect(self._open_expense)
 
         payment_btn = QPushButton("💳  결제 입력")
-        payment_btn.setFixedHeight(44)
-        payment_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #F0FDF4; color: #16A34A;
-                border: 1px solid #BBF7D0; border-radius: 6px;
-                font-size: 12px; font-weight: bold;
-            }
-            QPushButton:hover { background-color: #DCFCE7; }
-        """)
+        payment_btn.setObjectName("btn-payment")
         payment_btn.clicked.connect(self._open_payment)
+
+        viewer_btn = QPushButton("📋  내역 조회")
+        viewer_btn.setObjectName("btn-viewer")
+        viewer_btn.clicked.connect(self._open_entry_viewer)
 
         layout.addWidget(expense_btn)
         layout.addWidget(payment_btn)
+        layout.addWidget(viewer_btn)
 
         return _card(layout)
 
@@ -573,6 +570,13 @@ class MainWindow(QMainWindow):
         PaymentDialog(
             daily_file=self._path_daily or None,
             total_sales_file=self._path_total or None,
+            parent=self,
+        ).exec()
+
+    def _open_entry_viewer(self) -> None:
+        from src.ui.entry_viewer_dialog import EntryViewerDialog
+        EntryViewerDialog(
+            daily_file=self._path_daily or None,
             parent=self,
         ).exec()
 
