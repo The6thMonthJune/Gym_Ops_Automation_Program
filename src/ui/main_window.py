@@ -504,14 +504,13 @@ class MainWindow(QMainWindow):
                     self, "자동 생성",
                     f"오늘 날짜 파일이 없어 자동으로 생성했습니다:\n{created.name}"
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            QMessageBox.warning(self, "자동 파일 생성 실패", str(exc))
 
     def _check_date_change(self) -> None:
         today = date.today()
         if today != self._last_checked_date:
             self._last_checked_date = today
-            self._set_daily_path("")
             self._auto_setup_today_file()
 
     # ── 기능 슬롯 ──────────────────────────────────────────────
