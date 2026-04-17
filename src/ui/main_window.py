@@ -527,8 +527,8 @@ class MainWindow(QMainWindow):
             create_next_daily_file(saved)
         except FileExistsError:
             pass
-        except Exception:
-            pass
+        except Exception as exc:
+            QMessageBox.warning(self, "내일 파일 생성 실패", str(exc))
 
     def _check_date_change(self) -> None:
         today = date.today()
