@@ -289,6 +289,7 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._load_saved_paths()
         self._auto_setup_today_file()
+        self._ensure_next_file_exists()
 
         self._last_checked_date = date.today()
         timer = QTimer(self)
@@ -463,6 +464,7 @@ class MainWindow(QMainWindow):
         self._path_daily = path
         self._daily_path_row.set_path(path)
         self._save_paths()
+        self._ensure_next_file_exists()
 
     def _set_total_path(self, path: str) -> None:
         self._path_total = path
@@ -512,6 +514,21 @@ class MainWindow(QMainWindow):
                 )
         except Exception as exc:
             QMessageBox.warning(self, "자동 파일 생성 실패", str(exc))
+
+    def _ensure_next_file_exists(self) -> None:
+        """오늘 파일이 등록된 상태에서 내일 날짜 파일을 미리 생성한다."""
+        saved = self._path_daily
+        if not saved or not Path(saved).exists():
+            return
+        try:
+            parsed = extract_date_from_filename(Path(saved).name)
+            if parsed.to_date(date.today().year) != date.today():
+                return
+            create_next_daily_file(saved)
+        except FileExistsError:
+            pass
+        except Exception:
+            pass
 
     def _check_date_change(self) -> None:
         today = date.today()
