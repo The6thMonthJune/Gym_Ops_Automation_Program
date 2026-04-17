@@ -483,7 +483,13 @@ class MainWindow(QMainWindow):
 
     def _auto_setup_today_file(self) -> None:
         saved = self._path_daily
-        if not saved or not Path(saved).exists():
+        if not saved:
+            return
+        if not Path(saved).exists():
+            QMessageBox.warning(
+                self, "자동 파일 생성 실패",
+                f"저장된 데일리 파일 경로를 찾을 수 없습니다.\n\n{saved}\n\n파일을 다시 선택해주세요."
+            )
             return
         try:
             parsed = extract_date_from_filename(Path(saved).name)
