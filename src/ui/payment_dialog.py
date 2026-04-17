@@ -23,13 +23,14 @@ from PySide6.QtWidgets import (
 
 from src.services.entry_service import PaymentEntry, write_entry_to_daily, write_entry_to_total_sales
 from src.config.settings import get_password
+from src.config.constants import PAYMENT_METHODS, SALES_CATEGORIES, LESSON_ONLY_CATEGORIES
 
 _MEMBERSHIP_TYPES = ["신규", "재등", "기존"]
-_PAYMENT_METHODS = ["카드", "법인계좌", "일반계좌", "현금"]
-_CATEGORIES = ["헬스", "PT", "PTEV", "락카", "일일권", "GX", "필라테스", "골프"]
+_PAYMENT_METHODS = PAYMENT_METHODS
+_CATEGORIES = SALES_CATEGORIES
 
 # 레슨 구분에서만 선택 가능한 종목 (엑셀 수식 인식 기준)
-_LESSON_ONLY_CATEGORIES = ["PT", "필라테스", "골프"]
+_LESSON_ONLY_CATEGORIES = LESSON_ONLY_CATEGORIES
 _LESSON_CATEGORIES = set(_LESSON_ONLY_CATEGORIES)  # 자동 구분 전환 기준
 
 

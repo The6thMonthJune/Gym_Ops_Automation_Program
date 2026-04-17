@@ -160,10 +160,25 @@ class EntryViewerDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        self._notice_lbl = QLabel("행을 선택 후 삭제하세요")
+        self._notice_lbl = QLabel("행을 선택 후 수정 또는 삭제하세요")
         self._notice_lbl.setStyleSheet(f"color: #9CA3AF; font-size: 11px; background: transparent;")
         layout.addWidget(self._notice_lbl)
         layout.addStretch()
+
+        self._edit_btn = QPushButton("✏  수정")
+        self._edit_btn.setFixedHeight(36)
+        self._edit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #EFF6FF; color: #1D4ED8;
+                border: 1px solid #BFDBFE; border-radius: 6px;
+                font-size: 12px; font-weight: bold; padding: 0 16px;
+            }
+            QPushButton:hover { background-color: #DBEAFE; }
+            QPushButton:disabled { background-color: #F9FAFB; color: #D1D5DB; border-color: #E5E7EB; }
+        """)
+        self._edit_btn.setEnabled(False)
+        self._edit_btn.clicked.connect(self._on_edit)
+        layout.addWidget(self._edit_btn)
 
         self._delete_btn = QPushButton("🗑  삭제")
         self._delete_btn.setFixedHeight(36)
@@ -219,7 +234,13 @@ class EntryViewerDialog(QDialog):
             }}
         """)
 
+    def _on_selection_changed(self) -> None:
+        has = bool(self.table.selectedItems())
+        self._edit_btn.setEnabled(has)
+        self._delete_btn.setEnabled(has)
+
     def _refresh_table(self) -> None:
+        self._edit_btn.setEnabled(False)
         self._delete_btn.setEnabled(False)
         if self._current_tab == "매출":
             self._set_sales_columns()
@@ -273,9 +294,7 @@ class EntryViewerDialog(QDialog):
                 item.setBackground(Qt.GlobalColor.white if bg == _WHITE else Qt.GlobalColor.lightGray)
                 self.table.setItem(row_idx, col_idx, item)
 
-        self.table.selectionModel().selectionChanged.connect(
-            lambda: self._delete_btn.setEnabled(bool(self.table.selectedItems()))
-        )
+        self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
 
     def _populate_expenses(self) -> None:
         self.table.setRowCount(len(self._expenses))
@@ -294,9 +313,27 @@ class EntryViewerDialog(QDialog):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(row_idx, col_idx, item)
 
-        self.table.selectionModel().selectionChanged.connect(
-            lambda: self._delete_btn.setEnabled(bool(self.table.selectedItems()))
-        )
+        self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
+
+    # ── 수정 ─────────────────────────────────────────────────────
+
+    def _on_edit(self) -> None:
+        if not self.table.selectedItems():
+            return
+        if not self.daily_file:
+            QMessageBox.warning(self, "오류", "데일리 파일이 지정되지 않았습니다.")
+            return
+
+        from src.ui.entry_edit_dialog import ExpenseEditDialog, SalesEditDialog
+
+        row_idx = self.table.currentRow()
+        if self._current_tab == "매출":
+            dlg = SalesEditDialog(self._sales[row_idx], self.daily_file, parent=self)
+        else:
+            dlg = ExpenseEditDialog(self._expenses[row_idx], self.daily_file, parent=self)
+
+        if dlg.exec() == dlg.DialogCode.Accepted:
+            self._load_data()
 
     # ── 삭제 ─────────────────────────────────────────────────────
 
