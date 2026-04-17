@@ -381,7 +381,7 @@ class MainWindow(QMainWindow):
         self._result_text.setObjectName("result-text")
         self._result_text.setReadOnly(True)
         self._result_text.setFixedHeight(140)
-        self._result_text.setPlaceholderText("매출 보고 문구 생성 버튼을 누르면 여기에 카톡 문구가 표시됩니다.")
+        self._result_text.setPlaceholderText("매출 보고 문구 생성 버튼을 누르면 여기에 네이트온 문구가 표시됩니다.")
         layout.addWidget(self._result_text)
 
         copy_btn = QPushButton("📋  복사")
