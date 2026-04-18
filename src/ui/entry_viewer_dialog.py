@@ -37,14 +37,15 @@ _ROW_HEIGHT = 36
 _HEADER_HEIGHT = 36
 _VISIBLE_ROWS = 5
 
-_SALES_HEADERS = ["날짜", "회원명", "종목", "회원권", "금액", "결제방법", "구분", "FC", "담당"]
+_SALES_HEADERS = ["날짜", "회원명", "종목", "회원권", "금액", "결제방법", "구분", "FC"]
 _EXPENSE_HEADERS = ["날짜", "구분", "지출내용", "금액", "결제방법", "담당자", "거래처"]
 
 
 class EntryViewerDialog(QDialog):
-    def __init__(self, daily_file: str | None = None, parent=None) -> None:
+    def __init__(self, daily_file: str | None = None, total_sales_file: str | None = None, parent=None) -> None:
         super().__init__(parent)
         self.daily_file = daily_file
+        self.total_sales_file = total_sales_file
         self._sales: list[SalesEntryRow] = []
         self._expenses: list[ExpenseEntryRow] = []
         self._current_tab = "매출"
@@ -112,7 +113,7 @@ class EntryViewerDialog(QDialog):
         self._total_label = QLabel("오늘 총 매출\n-")
         self._total_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self._total_label.setStyleSheet(f"""
-            font-size: 11px; color: #6B7280; background: transparent;
+            font-size: 13px; color: {_NAVY}; background: transparent; font-weight: bold;
         """)
         layout.addWidget(self._total_label)
 
@@ -229,8 +230,8 @@ class EntryViewerDialog(QDialog):
         self._total_label.setText(f"오늘 총 매출\n{total:,}원")
         self._total_label.setStyleSheet(f"""
             QLabel {{
-                font-size: 11px; color: #6B7280; background: transparent;
-                qproperty-alignment: AlignRight;
+                font-size: 13px; color: {_NAVY}; background: transparent;
+                font-weight: bold; qproperty-alignment: AlignRight;
             }}
         """)
 
@@ -255,7 +256,7 @@ class EntryViewerDialog(QDialog):
         self.table.setColumnCount(len(_SALES_HEADERS))
         self.table.setHorizontalHeaderLabels(_SALES_HEADERS)
         header = self.table.horizontalHeader()
-        col_widths = [44, 72, 56, 130, 90, 80, 52, 56, 56]
+        col_widths = [44, 80, 60, 140, 90, 80, 52, 64]
         for i, w in enumerate(col_widths):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
             self.table.setColumnWidth(i, w)
@@ -286,12 +287,12 @@ class EntryViewerDialog(QDialog):
                 entry.payment_method,
                 entry.section,
                 entry.fc,
-                entry.manager,
             ]
             for col_idx, val in enumerate(values):
                 item = QTableWidgetItem(val)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item.setBackground(Qt.GlobalColor.white if bg == _WHITE else Qt.GlobalColor.lightGray)
+                item.setForeground(Qt.GlobalColor.black)
                 self.table.setItem(row_idx, col_idx, item)
 
         self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
@@ -311,6 +312,7 @@ class EntryViewerDialog(QDialog):
             for col_idx, val in enumerate(values):
                 item = QTableWidgetItem(val)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setForeground(Qt.GlobalColor.black)
                 self.table.setItem(row_idx, col_idx, item)
 
         self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
@@ -328,7 +330,8 @@ class EntryViewerDialog(QDialog):
 
         row_idx = self.table.currentRow()
         if self._current_tab == "매출":
-            dlg = SalesEditDialog(self._sales[row_idx], self.daily_file, parent=self)
+            dlg = SalesEditDialog(self._sales[row_idx], self.daily_file,
+                                  total_sales_file=self.total_sales_file, parent=self)
         else:
             dlg = ExpenseEditDialog(self._expenses[row_idx], self.daily_file, parent=self)
 

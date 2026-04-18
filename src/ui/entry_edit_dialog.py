@@ -21,6 +21,39 @@ from src.services.expense_service import EXPENSE_CATEGORIES, EXPENSE_PAYMENT_MET
 _NAVY = "#1E2D3D"
 _BG = "#F4F5F7"
 
+_BODY_STYLE = f"""
+    QWidget#editBody {{
+        background: {_BG};
+    }}
+    QWidget#editBody QLabel {{
+        color: #111827;
+        background: transparent;
+        font-size: 12px;
+    }}
+    QWidget#editBody QLineEdit {{
+        background: #FFFFFF;
+        color: #111827;
+        border: 1px solid #D1D5DB;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+    }}
+    QWidget#editBody QComboBox {{
+        background: #FFFFFF;
+        color: #111827;
+        border: 1px solid #D1D5DB;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+    }}
+    QWidget#editBody QComboBox QAbstractItemView {{
+        background: #FFFFFF;
+        color: #111827;
+        selection-background-color: #EFF6FF;
+        selection-color: #1E2D3D;
+    }}
+"""
+
 
 def _title_bar(text: str) -> QWidget:
     bar = QWidget()
@@ -66,10 +99,12 @@ def _cancel_btn() -> QPushButton:
 class SalesEditDialog(QDialog):
     """선택된 매출 행의 값을 수정하는 폼 다이얼로그."""
 
-    def __init__(self, entry: SalesEntryRow, daily_file: str, parent=None) -> None:
+    def __init__(self, entry: SalesEntryRow, daily_file: str,
+                 total_sales_file: str | None = None, parent=None) -> None:
         super().__init__(parent)
         self.entry = entry
         self.daily_file = daily_file
+        self.total_sales_file = total_sales_file
         self.setWindowTitle("매출 내역 수정")
         self.setMinimumWidth(420)
         self._setup_ui()
@@ -81,7 +116,8 @@ class SalesEditDialog(QDialog):
         root.addWidget(_title_bar("✏  매출 내역 수정"))
 
         body = QWidget()
-        body.setStyleSheet(f"background: {_BG};")
+        body.setObjectName("editBody")
+        body.setStyleSheet(_BODY_STYLE)
         body_layout = QVBoxLayout()
         body_layout.setContentsMargins(20, 16, 20, 16)
         body_layout.setSpacing(12)
@@ -123,6 +159,10 @@ class SalesEditDialog(QDialog):
             self._payment.setCurrentText(self.entry.payment_method)
         form.addRow("결제방법:", self._payment)
 
+        self._approval = QLineEdit(self.entry.approval_number)
+        self._approval.setPlaceholderText("카드 승인번호 (선택)")
+        form.addRow("승인번호:", self._approval)
+
         self._fc = QLineEdit(self.entry.fc)
         form.addRow("FC:", self._fc)
 
@@ -163,7 +203,7 @@ class SalesEditDialog(QDialog):
             return
 
         try:
-            edit_sales_row(
+            warn = edit_sales_row(
                 self.daily_file,
                 self.entry.row_num,
                 self.entry.section,
@@ -172,9 +212,15 @@ class SalesEditDialog(QDialog):
                 membership=membership,
                 amount=amount,
                 payment_method=self._payment.currentText(),
+                approval_number=self._approval.text().strip(),
                 fc=self._fc.text().strip(),
                 manager=self._manager.text().strip(),
+                original_name=self.entry.name,
+                original_amount=self.entry.amount,
+                total_path=self.total_sales_file or None,
             )
+            if warn:
+                QMessageBox.warning(self, "총매출 파일 경고", warn)
             self.accept()
         except Exception as exc:
             QMessageBox.critical(self, "저장 실패", str(exc))
@@ -198,7 +244,8 @@ class ExpenseEditDialog(QDialog):
         root.addWidget(_title_bar("✏  지출 내역 수정"))
 
         body = QWidget()
-        body.setStyleSheet(f"background: {_BG};")
+        body.setObjectName("editBody")
+        body.setStyleSheet(_BODY_STYLE)
         body_layout = QVBoxLayout()
         body_layout.setContentsMargins(20, 16, 20, 16)
         body_layout.setSpacing(12)

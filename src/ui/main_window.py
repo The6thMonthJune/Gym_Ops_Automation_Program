@@ -558,7 +558,31 @@ class MainWindow(QMainWindow):
         QApplication.clipboard().setText(text)
         QMessageBox.information(self, "완료", "문구를 클립보드에 복사했습니다.")
 
+    def _check_daily_date(self) -> bool:
+        """데일리 파일의 날짜가 오늘 날짜와 일치하는지 확인한다.
+        불일치하면 경고창을 표시하고 False를 반환한다."""
+        if not self._path_daily:
+            return True  # 파일 미지정은 다이얼로그 내부에서 처리
+        try:
+            parsed = extract_date_from_filename(Path(self._path_daily).name)
+            today = date.today()
+            if parsed.month != today.month or parsed.day != today.day:
+                file_date = f"{parsed.month}월 {parsed.day}일"
+                today_str = f"{today.month}월 {today.day}일"
+                QMessageBox.warning(
+                    self,
+                    "날짜 불일치",
+                    f"데일리 파일 날짜({file_date})와 오늘 날짜({today_str})가 다릅니다.\n\n"
+                    "올바른 날짜의 데일리 파일을 선택한 후 다시 시도하세요.",
+                )
+                return False
+        except ValueError:
+            pass  # 파일명에서 날짜를 읽을 수 없으면 통과
+        return True
+
     def _open_expense(self) -> None:
+        if not self._check_daily_date():
+            return
         from src.ui.expense_dialog import ExpenseDialog
         ExpenseDialog(
             daily_file=self._path_daily or None,
@@ -567,6 +591,8 @@ class MainWindow(QMainWindow):
         ).exec()
 
     def _open_payment(self) -> None:
+        if not self._check_daily_date():
+            return
         PaymentDialog(
             daily_file=self._path_daily or None,
             total_sales_file=self._path_total or None,
@@ -577,6 +603,7 @@ class MainWindow(QMainWindow):
         from src.ui.entry_viewer_dialog import EntryViewerDialog
         EntryViewerDialog(
             daily_file=self._path_daily or None,
+            total_sales_file=self._path_total or None,
             parent=self,
         ).exec()
 
