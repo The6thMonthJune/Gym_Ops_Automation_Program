@@ -1,0 +1,718 @@
+{
+  "version": "2.11",
+  "children": [
+    {
+      "type": "frame",
+      "id": "w8ydw",
+      "x": 100,
+      "y": 100,
+      "name": "락카 관리 다이얼로그",
+      "width": 1100,
+      "height": 1820,
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "QQTh9",
+          "name": "TitleBar",
+          "width": "fill_container",
+          "height": 48,
+          "fill": "#1E2D3D",
+          "gap": 8,
+          "padding": [
+            0,
+            20
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "KuHfw",
+              "name": "titleIcon",
+              "content": "🔐",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "f7UNV",
+              "name": "titleText",
+              "fill": "#FFFFFF",
+              "content": "락카 관리",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "nPFIM",
+              "name": "titleSpacer",
+              "width": "fill_container",
+              "height": 1
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "A0Y9q",
+          "name": "Body",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#F4F5F7",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "3yhUw",
+              "name": "ImportCard",
+              "width": "fill_container",
+              "fill": "#FFFFFF",
+              "cornerRadius": 8,
+              "stroke": {
+                "thickness": 1,
+                "fill": "#E5E7EB"
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": [
+                12,
+                16
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "V5VZB",
+                  "name": "importLabel",
+                  "fill": "#6B7280",
+                  "content": "브로제이 엑셀 데이터 가져오기",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "v2mzx",
+                  "name": "importRow",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "mmdCL",
+                      "name": "FilePathBox",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#F4F5F7",
+                      "cornerRadius": 6,
+                      "stroke": {
+                        "thickness": 1,
+                        "fill": "#D1D5DB"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "PjIPZ",
+                          "name": "fileIcon",
+                          "content": "📁",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "1qAMo",
+                          "name": "filePath",
+                          "fill": "#9CA3AF",
+                          "content": "파일을 선택하세요 (복수 선택 가능, .xls)",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "KMTBE",
+                      "name": "ImportBtn",
+                      "width": 100,
+                      "height": 34,
+                      "fill": "#1E2D3D",
+                      "cornerRadius": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Xb0YS",
+                          "name": "importBtnText",
+                          "fill": "#FFFFFF",
+                          "content": "가져오기",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yX9E8",
+              "name": "Legend",
+              "width": "fill_container",
+              "gap": 16,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "iuO0I",
+                  "name": "legendLabel",
+                  "fill": "#374151",
+                  "content": "상태:",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "yUgfN",
+                  "name": "leg1",
+                  "gap": 6,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "kT9wb",
+                      "name": "leg1dot",
+                      "width": 12,
+                      "height": 12,
+                      "fill": "#22C55E",
+                      "cornerRadius": 2
+                    },
+                    {
+                      "type": "text",
+                      "id": "ACjrR",
+                      "name": "leg1txt",
+                      "fill": "#374151",
+                      "content": "활성",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "AjGs1",
+                  "name": "leg2",
+                  "gap": 6,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "dHJWq",
+                      "name": "leg2dot",
+                      "width": 12,
+                      "height": 12,
+                      "fill": "#EF4444",
+                      "cornerRadius": 2
+                    },
+                    {
+                      "type": "text",
+                      "id": "uTbFR",
+                      "name": "leg2txt",
+                      "fill": "#374151",
+                      "content": "임박 (10일 이내)",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "tjMl3",
+                  "name": "leg3",
+                  "gap": 6,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "r4bRd",
+                      "name": "leg3dot",
+                      "width": 12,
+                      "height": 12,
+                      "fill": "#9CA3AF",
+                      "cornerRadius": 2
+                    },
+                    {
+                      "type": "text",
+                      "id": "zy7hs",
+                      "name": "leg3txt",
+                      "fill": "#374151",
+                      "content": "만료",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "850h4",
+                  "name": "leg4",
+                  "gap": 6,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "w706Z",
+                      "name": "leg4dot",
+                      "width": 12,
+                      "height": 12,
+                      "fill": "#A855F7",
+                      "cornerRadius": 2
+                    },
+                    {
+                      "type": "text",
+                      "id": "ZUyBB",
+                      "name": "leg4txt",
+                      "fill": "#374151",
+                      "content": "홀딩",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "3ofm5",
+                  "name": "legSpacer",
+                  "width": "fill_container",
+                  "height": 1
+                },
+                {
+                  "type": "text",
+                  "id": "uGFad",
+                  "name": "lastSync",
+                  "fill": "#9CA3AF",
+                  "content": "마지막 동기화: 2026.04.18 14:32",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TVmYC",
+              "name": "GridScroll",
+              "width": "fill_container",
+              "height": 1520,
+              "fill": "#F4F5F7",
+              "layout": "vertical",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Vh16E",
+                  "name": "남자탈의실섹션",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "H5ISx",
+                      "name": "sec1Header",
+                      "width": "fill_container",
+                      "height": 28,
+                      "fill": "#1E2D3D",
+                      "cornerRadius": 4,
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "qQoae",
+                          "name": "sec1Title",
+                          "fill": "#FFFFFF",
+                          "content": "🚹  남자 탈의실  (1 – 84)",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "yLIbo",
+                          "name": "sec1Count",
+                          "fill": "#94A3B8",
+                          "content": "활성 18  |  임박 2  |  만료 3  |  빈칸 61",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "tV9LD",
+                      "name": "sec1Grid",
+                      "width": "fill_container",
+                      "height": 462,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "script",
+                          "id": "d9VDn",
+                          "x": 0,
+                          "y": 0,
+                          "name": "grid1",
+                          "width": 624,
+                          "height": 462,
+                          "scriptUri": "locker_grid.js",
+                          "inputs": {
+                            "startNumber": 1,
+                            "cols": 12,
+                            "rows": 7,
+                            "cellWidth": 46,
+                            "cellHeight": 64,
+                            "gap": 2
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "IsQyk",
+                  "name": "여회원섹션",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "JXq8t",
+                      "name": "sec2Header",
+                      "width": "fill_container",
+                      "height": 28,
+                      "fill": "#4A6FA5",
+                      "cornerRadius": 4,
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "jmBu9",
+                          "name": "sec2Title",
+                          "fill": "#FFFFFF",
+                          "content": "🚺  여회원 별  (85 – 119)",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "D8gl7",
+                          "name": "sec2Count",
+                          "fill": "#BFDBFE",
+                          "content": "활성 12  |  임박 1  |  만료 2  |  빈칸 20",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "dSCQU",
+                      "name": "여회원Grid",
+                      "width": 240,
+                      "height": 462,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "script",
+                          "id": "064sn",
+                          "x": 0,
+                          "y": 0,
+                          "name": "grid2",
+                          "width": 240,
+                          "height": 462,
+                          "scriptUri": "locker_grid.js",
+                          "inputs": {
+                            "startNumber": 85,
+                            "cols": 5,
+                            "rows": 7,
+                            "cellWidth": 46,
+                            "cellHeight": 64,
+                            "gap": 2
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "M5GNR",
+                  "name": "메인락카섹션",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "zTiUQ",
+                      "name": "sec3Header",
+                      "width": "fill_container",
+                      "height": 28,
+                      "fill": "#374151",
+                      "cornerRadius": 4,
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "CsAna",
+                          "name": "sec3Title",
+                          "fill": "#FFFFFF",
+                          "content": "🔑  메인 락카  (120 – 252)",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "MaLNu",
+                          "name": "sec3Count",
+                          "fill": "#D1D5DB",
+                          "content": "활성 45  |  임박 3  |  만료 5  |  빈칸 80",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "StzR9",
+                      "name": "메인락카Grid",
+                      "width": 964,
+                      "height": 462,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "script",
+                          "id": "TQOk0",
+                          "x": 0,
+                          "y": 0,
+                          "name": "grid3",
+                          "width": 964,
+                          "height": 462,
+                          "scriptUri": "locker_grid.js",
+                          "inputs": {
+                            "startNumber": 120,
+                            "cols": 19,
+                            "rows": 7,
+                            "cellWidth": 50,
+                            "cellHeight": 64,
+                            "gap": 2
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "MydET",
+              "name": "BottomBar",
+              "width": "fill_container",
+              "height": 52,
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "yBBoE",
+                  "name": "infoTxt",
+                  "fill": "#6B7280",
+                  "content": "총 253개 락카  |  활성 75  |  임박 6  |  만료 10  |  홀딩 2  |  빈칸 160",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "WMqUb",
+                  "name": "spacer",
+                  "width": "fill_container",
+                  "height": 1
+                },
+                {
+                  "type": "frame",
+                  "id": "2DkG9",
+                  "name": "PrintBtn",
+                  "width": 110,
+                  "height": 38,
+                  "fill": "#F4F5F7",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "#D1D5DB"
+                  },
+                  "gap": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "iH4Fv",
+                      "name": "printIcon",
+                      "content": "🖨️",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "bWfuM",
+                      "name": "printTxt",
+                      "fill": "#374151",
+                      "content": "인쇄",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "50VFe",
+                  "name": "RefreshBtn",
+                  "width": 38,
+                  "height": 38,
+                  "fill": "#F4F5F7",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "#D1D5DB"
+                  },
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "aAJKp",
+                      "name": "refreshIcon",
+                      "fill": "#374151",
+                      "content": "↺",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ERMzI",
+                  "name": "rightSpacer",
+                  "width": "fill_container",
+                  "height": 1
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "a7rqv",
+      "x": 1266,
+      "y": 100,
+      "name": "LockerCell",
+      "reusable": true,
+      "width": 72,
+      "height": 76,
+      "fill": "#DCFCE7",
+      "cornerRadius": 4,
+      "stroke": {
+        "thickness": 1,
+        "fill": "#BBF7D0"
+      },
+      "layout": "vertical",
+      "gap": 2,
+      "padding": [
+        6,
+        4
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "KjjnF",
+          "name": "cellNum",
+          "fill": "#166534",
+          "content": "1",
+          "fontFamily": "Inter",
+          "fontSize": 9,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "m7Ofy",
+          "name": "cellName",
+          "fill": "#14532D",
+          "textGrowth": "fixed-width",
+          "width": 64,
+          "content": "홍길동",
+          "textAlign": "center",
+          "fontFamily": "Inter",
+          "fontSize": 11,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "pkhR6",
+          "name": "cellDays",
+          "fill": "#16A34A",
+          "content": "89일",
+          "fontFamily": "Inter",
+          "fontSize": 9,
+          "fontWeight": "normal"
+        }
+      ]
+    }
+  ]
+}
