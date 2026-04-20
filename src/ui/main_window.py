@@ -329,6 +329,7 @@ class MainWindow(QMainWindow):
         body_layout.addWidget(self._build_result_card())
         body_layout.addWidget(self._build_action_card())
         body_layout.addWidget(self._build_total_card())
+        body_layout.addWidget(self._build_locker_card())
         body_layout.addWidget(self._build_settings_btn())
 
         body.setLayout(body_layout)
@@ -439,6 +440,28 @@ class MainWindow(QMainWindow):
         self._total_path_row = FilePathRow()
         self._total_path_row.browse_clicked.connect(self._browse_total)
         layout.addWidget(self._total_path_row)
+
+        return _card(layout)
+
+    def _build_locker_card(self) -> QFrame:
+        layout = QVBoxLayout()
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+
+        layout.addWidget(_section_label("🔐  락카 관리"))
+
+        locker_btn = QPushButton("🔒  락카 현황 열기")
+        locker_btn.setFixedHeight(44)
+        locker_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #EEF2FF; color: #4338CA;
+                border: 1px solid #C7D2FE; border-radius: 6px;
+                font-size: 12px; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #E0E7FF; }}
+        """)
+        locker_btn.clicked.connect(self._open_locker_dialog)
+        layout.addWidget(locker_btn)
 
         return _card(layout)
 
@@ -606,6 +629,10 @@ class MainWindow(QMainWindow):
             total_sales_file=self._path_total or None,
             parent=self,
         ).exec()
+
+    def _open_locker_dialog(self) -> None:
+        from src.ui.locker_dialog import LockerDialog
+        LockerDialog(parent=self).exec()
 
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()
