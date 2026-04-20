@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from src.services.brogej_service import LockerRecord
+from src.services.broj_service import LockerRecord
 
 _DATA_DIR  = Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드자동화"
 _LOCKER_JSON = _DATA_DIR / "locker_data.json"
@@ -15,7 +15,7 @@ IMMINENT_DAYS = 30  # 만료 임박 기준 (일)
 
 SECTIONS: list[dict] = [
     {"name": "남자 탈의실", "start": 1,   "end": 84,  "cols": 12, "rows": 7},
-    {"name": "여회원",      "start": 85,  "end": 119, "cols": 5,  "rows": 7},
+    {"name": "회원복 락카",      "start": 85,  "end": 119, "cols": 5,  "rows": 7},
     {"name": "메인 락카",   "start": 120, "end": 252, "cols": 19, "rows": 7},
 ]
 
@@ -30,6 +30,9 @@ class LockerCell:
 
 def _compute_state(record: LockerRecord) -> str:
     today = date.today()
+    # 예정: 시작일이 오늘 이후
+    if record.start_date and record.start_date > today:
+        return "scheduled"
     if record.expiry_date:
         delta = (record.expiry_date - today).days
         if delta < 0:
@@ -60,6 +63,26 @@ def build_grid(records: list[LockerRecord]) -> dict[int, LockerCell]:
 def get_unassigned(records: list[LockerRecord]) -> list[LockerRecord]:
     """결제했지만 락카 미배정 회원 목록을 반환한다."""
     return [r for r in records if r.locker_number <= 0 and r.has_key]
+
+
+def merge_records(
+    existing: list[LockerRecord],
+    new: list[LockerRecord],
+) -> list[LockerRecord]:
+    """기존 레코드에 새 레코드를 병합한다.
+    락커번호(>0)가 같으면 새 데이터로 덮어쓰고, 기존에 없는 락커는 추가한다.
+    락커번호=0인 미배정 회원은 이름으로 중복 체크한다.
+    """
+    merged: dict[str, LockerRecord] = {}
+    # 기존 데이터 먼저 적재 (키: 락커번호 or 이름)
+    for r in existing:
+        key = str(r.locker_number) if r.locker_number > 0 else f"name:{r.member_name}"
+        merged[key] = r
+    # 새 데이터로 upsert
+    for r in new:
+        key = str(r.locker_number) if r.locker_number > 0 else f"name:{r.member_name}"
+        merged[key] = r
+    return list(merged.values())
 
 
 def save_records(records: list[LockerRecord]) -> None:

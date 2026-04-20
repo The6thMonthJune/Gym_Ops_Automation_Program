@@ -16,11 +16,12 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from src.services.brogej_service import LockerRecord, parse_xls
+from src.services.broj_service import LockerRecord, parse_xls
 from src.services.locker_service import (
     SECTIONS,
     LockerCell,
@@ -28,6 +29,7 @@ from src.services.locker_service import (
     get_locker_json_path,
     get_unassigned,
     load_records,
+    merge_records,
     save_records,
 )
 from src.config.settings import load_settings, save_settings
@@ -43,9 +45,10 @@ _BORDER = "#D1D5DB"
 _COLORS: dict[str, dict[str, str]] = {
     "active":    {"bg": "#DCFCE7", "border": "#BBF7D0", "num": "#166534", "name": "#14532D", "sub": "#16A34A"},
     "imminent":  {"bg": "#FEE2E2", "border": "#FECACA", "num": "#7F1D1D", "name": "#991B1B", "sub": "#DC2626"},
-    "expired":   {"bg": "#F9FAFB", "border": "#D1D5DB", "num": "#9CA3AF", "name": "#6B7280", "sub": "#9CA3AF"},
+    "expired":   {"bg": "#D1D5DB", "border": "#9CA3AF", "num": "#4B5563", "name": "#374151", "sub": "#6B7280"},
+    "scheduled": {"bg": "#FEF9C3", "border": "#FDE047", "num": "#713F12", "name": "#854D0E", "sub": "#A16207"},
     "empty":     {"bg": "#F3F4F6", "border": "#E5E7EB", "num": "#D1D5DB", "name": "#9CA3AF", "sub": "#D1D5DB"},
-    "unassigned":{"bg": "#FEF9C3", "border": "#FDE047", "num": "#713F12", "name": "#854D0E", "sub": "#A16207"},
+    "unassigned":{"bg": "#FFEDD5", "border": "#FDBA74", "num": "#7C2D12", "name": "#9A3412", "sub": "#C2410C"},
 }
 
 _SECTION_COLORS = ["#1E2D3D", "#4A6FA5", "#374151"]
@@ -133,6 +136,7 @@ class _SectionWidget(QWidget):
 
         # 그리드 (열-우선 배치)
         grid_widget = QWidget()
+        grid_widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         grid_layout = QGridLayout(grid_widget)
         grid_layout.setContentsMargins(0, 0, 0, 0)
         grid_layout.setSpacing(2)
@@ -147,7 +151,7 @@ class _SectionWidget(QWidget):
             row = rel % rows
             grid_layout.addWidget(_CellWidget(n, grid.get(n)), row, col)
 
-        vlay.addWidget(grid_widget)
+        vlay.addWidget(grid_widget, 0, Qt.AlignLeft)
 
 
 class LockerDialog(QDialog):
@@ -287,6 +291,7 @@ class LockerDialog(QDialog):
         for state, text in [
             ("active",     "활성"),
             ("imminent",   "만료 임박"),
+            ("scheduled",  "예정"),
             ("expired",    "만료"),
             ("empty",      "빈 칸"),
             ("unassigned", "미배정"),
@@ -415,18 +420,9 @@ class LockerDialog(QDialog):
         self._import_btn.setEnabled(False)
         self._import_btn.setText("처리 중...")
         try:
-            records = parse_xls(self._xls_path, delete_after=False)  # 디버그 중 삭제 비활성화
-            with_num   = [r for r in records if r.locker_number > 0]
-            unassigned = [r for r in records if r.locker_number <= 0 and r.has_key]
-            QMessageBox.information(
-                self, "파싱 결과 (디버그)",
-                f"총 파싱: {len(records)}명\n"
-                f"락커번호 있음: {len(with_num)}명\n"
-                f"미배정(결제만): {len(unassigned)}명\n\n"
-                f"락커번호 샘플: {[r.locker_number for r in records[:5]]}\n"
-                f"구역 샘플: {[r.locker_room for r in records[:5]]}"
-            )
-            save_records(records)
+            records = parse_xls(self._xls_path, delete_after=True)
+            merged = merge_records(load_records(), records)
+            save_records(merged)
             self._xls_path = ""
             self._xls_label.setText(f"가져오기 완료 — {len(records)}명")
             self._xls_label.setStyleSheet(f"""
@@ -481,7 +477,7 @@ class LockerDialog(QDialog):
         printer.setPageLayout(QPageLayout(
             QPageSize(QPageSize.A4),
             QPageLayout.Landscape,
-            QMarginsF(10, 10, 10, 10),
+            QMarginsF(4, 4, 4, 4),
         ))
 
         dlg = QPrintDialog(printer, self)
@@ -493,55 +489,112 @@ class LockerDialog(QDialog):
     def _build_print_html(self) -> str:
         grid = build_grid(self._records)
 
-        cell_styles = {
-            state: f"background:{c['bg']};border:1px solid {c['border']};color:{c['name']};"
-            for state, c in _COLORS.items()
+        state_labels = {
+            "active": "활성", "imminent": "만료임박", "scheduled": "예정",
+            "expired": "만료", "empty": "", "unassigned": "미배정",
         }
 
-        html = """<html><head><style>
-body { font-family: 'Malgun Gothic', sans-serif; font-size: 8pt; }
-table { border-collapse: collapse; margin: 4px 0; }
-.sec-title { font-size: 10pt; font-weight: bold; margin: 8px 0 4px 0; }
-td { width: 44px; height: 56px; text-align: center; vertical-align: middle;
-     font-size: 7pt; border-radius: 2px; padding: 1px; }
-</style></head><body>"""
+        # 셀 하나 렌더링 (Qt HTML 렌더러용: div로 줄바꿈)
+        def render_cell(n: int) -> str:
+            cell  = grid.get(n)
+            state = cell.state if cell else "empty"
+            c     = _COLORS.get(state, _COLORS["empty"])
+            name  = cell.member_name if cell else ""
+            if cell and cell.days_remaining is not None:
+                sub = f"{cell.days_remaining}일" if cell.days_remaining >= 0 else "만료"
+            elif cell:
+                sub = state_labels.get(state, "")
+            else:
+                sub = ""
+            return (
+                f'<td width="52" height="108" align="center" valign="top"'
+                f' style="background:{c["bg"]};border:1px solid {c["border"]};'
+                f'border-radius:3px;padding:6px 2px 4px 2px;">'
+                f'<div style="font-size:7pt;font-weight:bold;color:{c["num"]};'
+                f'margin-bottom:8px;">{n}</div>'
+                f'<div style="font-size:8.5pt;font-weight:bold;color:{c["name"]};'
+                f'margin-bottom:8px;line-height:1.3;">{name}</div>'
+                f'<div style="font-size:7pt;color:{c["sub"]};">{sub}</div>'
+                f'</td>'
+            )
 
-        html += f"<p style='font-size:9pt;font-weight:bold;'>락카 현황 — {date.today().strftime('%Y년 %m월 %d일')}</p>"
+        # 빈 칸
+        def empty_td() -> str:
+            return '<td width="52" height="108" style="background:#F3F4F6;border:1px solid #E5E7EB;border-radius:3px;"></td>'
 
-        for section in SECTIONS:
-            rows  = section["rows"]
-            start = section["start"]
-            end   = section["end"]
-
-            html += f"<div class='sec-title'>{section['name']} ({start}~{end})</div><table>"
+        # 단독 섹션 테이블 렌더링 (2페이지 메인 락카용)
+        def render_section(section: dict) -> str:
+            rows, start, end = section["rows"], section["start"], section["end"]
+            t = (
+                f'<div style="font-size:9pt;font-weight:bold;color:white;'
+                f'background:#1E2D3D;padding:4px 10px;border-radius:3px 3px 0 0;">'
+                f'{section["name"]}'
+                f'<span style="font-size:7.5pt;font-weight:normal;"> '
+                f'({start}~{end}번)</span></div>'
+                f'<table cellspacing="2" cellpadding="0">'
+            )
             for r in range(rows):
-                html += "<tr>"
+                t += "<tr>"
                 for col in range(section["cols"]):
                     n = start + col * rows + r
-                    if n > end:
-                        html += "<td></td>"
-                        continue
-                    cell = grid.get(n)
-                    state = cell.state if cell else "empty"
-                    style = cell_styles[state]
-                    name  = cell.member_name if cell else ""
-                    if cell and cell.days_remaining is not None:
-                        sub = f"{cell.days_remaining}일" if cell.days_remaining >= 0 else "만료"
-                    elif cell and cell.state == "expired":
-                        sub = "만료"
-                    elif not cell:
-                        sub = "빈 칸"
-                    else:
-                        sub = ""
-                    html += (
-                        f'<td style="{style}">'
-                        f'<div style="font-size:6pt;font-weight:bold;">{n}</div>'
-                        f'<div style="font-size:7pt;font-weight:bold;">{name}</div>'
-                        f'<div style="font-size:6pt;">{sub}</div>'
-                        f'</td>'
-                    )
-                html += "</tr>"
-            html += "</table>"
+                    t += render_cell(n) if n <= end else empty_td()
+                t += "</tr>"
+            t += "</table>"
+            return t
+
+        # 1페이지 전용: 두 섹션을 하나의 테이블로 합쳐 행 높이를 동기화
+        def render_page1() -> str:
+            s0, s1 = SECTIONS[0], SECTIONS[1]
+            rows = 7
+
+            def hdr(section: dict, colspan: int) -> str:
+                return (
+                    f'<td colspan="{colspan}" style="font-size:9pt;font-weight:bold;'
+                    f'color:white;background:#1E2D3D;padding:4px 10px;">'
+                    f'{section["name"]}'
+                    f'<span style="font-size:7.5pt;font-weight:normal;"> '
+                    f'({section["start"]}~{section["end"]}번)</span></td>'
+                )
+
+            t = '<table cellspacing="2" cellpadding="0"><tr>'
+            t += hdr(s0, s0["cols"])
+            t += '<td width="14"></td>'
+            t += hdr(s1, s1["cols"])
+            t += "</tr>"
+
+            for r in range(rows):
+                t += "<tr>"
+                for col in range(s0["cols"]):
+                    n = s0["start"] + col * rows + r
+                    t += render_cell(n) if n <= s0["end"] else empty_td()
+                t += '<td width="14"></td>'
+                for col in range(s1["cols"]):
+                    n = s1["start"] + col * rows + r
+                    t += render_cell(n) if n <= s1["end"] else empty_td()
+                t += "</tr>"
+
+            t += "</table>"
+            return t
+
+        today_str = date.today().strftime('%Y년 %m월 %d일')
+
+        css = """
+<style>
+body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 8px; }
+h2 { font-size: 13pt; font-weight: bold; color: #1E2D3D;
+     margin: 0 0 8px 0; border-bottom: 2px solid #1E2D3D; padding-bottom: 4px; }
+</style>"""
+
+        html = f"<html><head><meta charset='UTF-8'>{css}</head><body>"
+
+        # ── 1페이지: 남자 탈의실 + 회원복 락카 (단일 테이블로 행 높이 동기화) ──
+        html += f"<h2>락카 현황 — {today_str}</h2>"
+        html += render_page1()
+
+        # ── 2페이지: 메인 락카 ──
+        html += '<p style="page-break-before:always;"></p>'
+        html += f"<h2>락카 현황 — {today_str}</h2>"
+        html += f"<center>{render_section(SECTIONS[2])}</center>"
 
         html += "</body></html>"
         return html
