@@ -60,24 +60,24 @@ class _CellWidget(QFrame):
         state = cell.state if cell else "empty"
         c = _COLORS.get(state, _COLORS["empty"])
 
-        self.setFixedSize(46, 66)
+        self.setFixedSize(62, 92)
         self.setStyleSheet(f"""
             QFrame {{
                 background: {c['bg']};
                 border: 1px solid {c['border']};
-                border-radius: 3px;
+                border-radius: 4px;
             }}
             QLabel {{ background: transparent; border: none; }}
         """)
 
         vlay = QVBoxLayout(self)
-        vlay.setContentsMargins(1, 2, 1, 2)
+        vlay.setContentsMargins(2, 4, 2, 4)
         vlay.setSpacing(0)
 
         num_lbl = QLabel(str(number))
         num_lbl.setAlignment(Qt.AlignCenter)
         num_lbl.setStyleSheet(
-            f"font-size: 8px; font-weight: bold; color: {c['num']};"
+            f"font-size: 10px; font-weight: bold; color: {c['num']};"
         )
         vlay.addWidget(num_lbl)
 
@@ -88,7 +88,7 @@ class _CellWidget(QFrame):
         name_lbl.setAlignment(Qt.AlignCenter)
         name_lbl.setWordWrap(True)
         name_lbl.setStyleSheet(
-            f"font-size: 8px; font-weight: bold; color: {c['name']};"
+            f"font-size: 12px; font-weight: bold; color: {c['name']};"
         )
         vlay.addWidget(name_lbl)
 
@@ -106,7 +106,7 @@ class _CellWidget(QFrame):
 
         sub_lbl = QLabel(sub_text)
         sub_lbl.setAlignment(Qt.AlignCenter)
-        sub_lbl.setStyleSheet(f"font-size: 8px; color: {c['sub']};")
+        sub_lbl.setStyleSheet(f"font-size: 11px; color: {c['sub']};")
         vlay.addWidget(sub_lbl)
 
 
@@ -158,7 +158,7 @@ class LockerDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("락카 관리")
-        self.setMinimumWidth(1180)
+        self.setMinimumWidth(1300)
         self.setStyleSheet(f"""
             QDialog {{ background: {_BG}; font-family: "Malgun Gothic", sans-serif; }}
             QPushButton {{ outline: none; }}
