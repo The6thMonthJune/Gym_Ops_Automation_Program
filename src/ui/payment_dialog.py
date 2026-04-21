@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from src.services.entry_service import PaymentEntry, write_entry_to_daily, write_entry_to_total_sales
 from src.config.settings import get_password
 from src.config.constants import PAYMENT_METHODS, SALES_CATEGORIES, LESSON_ONLY_CATEGORIES
+from src.ui._kakao_send_widget import KakaoSendWidget
 
 _MEMBERSHIP_TYPES = ["신규", "재등", "기존"]
 _PAYMENT_METHODS = PAYMENT_METHODS
@@ -151,6 +152,9 @@ class PaymentDialog(QDialog):
         copy_button = QPushButton("복사")
         copy_button.clicked.connect(self._copy_message)
         layout.addWidget(copy_button)
+
+        self._kakao_widget = KakaoSendWidget(self._get_kakao_message)
+        layout.addWidget(self._kakao_widget)
 
         self.setLayout(layout)
 
@@ -312,6 +316,10 @@ class PaymentDialog(QDialog):
             QMessageBox.critical(self, "오류", "\n".join(errors))
         if results:
             QMessageBox.information(self, "완료", "\n".join(results))
+
+    def _get_kakao_message(self) -> str | None:
+        text = self.output.toPlainText().strip()
+        return text if text else None
 
     def _copy_message(self) -> None:
         text = self.output.toPlainText().strip()
