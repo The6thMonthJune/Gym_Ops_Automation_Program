@@ -1,27 +1,53 @@
-// 메신저봇R — 레거시 API 방식
-// 트리거방에서 "[직원]내용" 또는 "[알바]내용" 수신 시 해당 방으로 라우팅
+// 메신저봇R — Java ServerSocket HTTP 서버 방식
+// PC에서 POST http://폰IP:9094 { "target": "직원"|"알바", "msg": "내용" }
+// 레거시 API 체크 필요 (Api.replyRoom 사용)
 
-var TRIGGER_ROOM = "트리거방";
-var ROOMS = {
-  "알바": "리와인드 휘트니스 중산점 인포방",
-  "직원": "리와인드 휘트니스 중산점"
-};
+try {
+    var server = new java.net.ServerSocket();
+    server.setReuseAddress(true);
+    server.bind(new java.net.InetSocketAddress(9094));
+    Log.i("HTTP 서버 시작");
 
-function response(room, msg, sender, isGroupChat, replier) {
-  Log.i("받음: " + room + " | " + msg);
+    new java.lang.Thread(function () {
+        var ROOMS = {"알바": "리와인드 휘트니스 중산점 인포방", "직원": "리와인드 휘트니스 중산점"};
+        while (true) {
+            try {
+                var socket = server.accept();
+                Log.i("연결됨");
 
-  if (room !== TRIGGER_ROOM) return;
+                var reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(socket.getInputStream(), "UTF-8")
+                );
+                var out = socket.getOutputStream();
 
-  var match = msg.match(/^\[(직원|알바)\]([\s\S]+)/);
-  if (!match) return;
+                var line, contentLength = 0;
+                while ((line = reader.readLine()) !== null && line.length() > 0) {
+                    if (("" + line).toLowerCase().startsWith("content-length:"))
+                        contentLength = parseInt(("" + line).split(":")[1].trim());
+                }
 
-  var key = match[1];
-  var message = match[2].trim();
-  var target = ROOMS[key];
+                var body = "";
+                for (var i = 0; i < contentLength; i++) {
+                    body += String.fromCharCode(reader.read());
+                }
+                Log.i("바디: " + body);
 
-  Log.i("전송 시도: " + target + " | " + message);
+                var data = JSON.parse(body);
+                var target = ROOMS[data.target];
+                if (target && data.msg) {
+                    Api.replyRoom(target, data.msg);
+                    Log.i("전송: " + target);
+                }
 
-  if (target && message) {
-    Api.replyRoom(target, message);
-  }
+                var res = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+                out.write(new java.lang.String(res).getBytes("UTF-8"));
+                out.flush();
+                socket.close();
+            } catch(e) {
+                Log.i("오류: " + e);
+            }
+        }
+    }).start();
+} catch(e) {
+    Log.i("서버 시작 실패: " + e);
 }

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.services import adb_service
+from src.config.settings import get_phone_ip
 
 _BTN_STYLE = """
 QPushButton {{
@@ -43,16 +44,14 @@ class KakaoSendWidget(QWidget):
         group = QGroupBox("📱 카톡 자동 전송")
         inner = QVBoxLayout()
 
-        # 연결 상태
         self._status_lbl = QLabel()
         self.refresh_status()
         inner.addWidget(self._status_lbl)
 
-        note = QLabel("※ 전송 전 센터폰 카카오톡이 트리거방에 열려 있어야 합니다")
+        note = QLabel("※ 설정에서 센터폰 IP를 먼저 입력하세요")
         note.setStyleSheet("color: #888888; font-size: 11px;")
         inner.addWidget(note)
 
-        # 버튼 행
         btn_row = QHBoxLayout()
 
         alba_btn = QPushButton("알바방 전송")
@@ -76,11 +75,16 @@ class KakaoSendWidget(QWidget):
         outer.addWidget(group)
 
     def refresh_status(self) -> None:
-        if adb_service.is_connected():
-            self._status_lbl.setText("● 센터폰 연결됨")
+        ip = get_phone_ip()
+        if not ip:
+            self._status_lbl.setText("● 센터폰 IP 미설정 (설정에서 입력)")
+            self._status_lbl.setStyleSheet("color: #EF4444; font-weight: bold;")
+            return
+        if adb_service.is_reachable(ip):
+            self._status_lbl.setText(f"● 센터폰 연결됨 ({ip})")
             self._status_lbl.setStyleSheet("color: #22C55E; font-weight: bold;")
         else:
-            self._status_lbl.setText("● 센터폰 미연결")
+            self._status_lbl.setText(f"● 센터폰 미연결 ({ip})")
             self._status_lbl.setStyleSheet("color: #EF4444; font-weight: bold;")
 
     def _send(self, target: str) -> None:
@@ -89,19 +93,19 @@ class KakaoSendWidget(QWidget):
             QMessageBox.warning(self.window(), "경고", "먼저 카톡 문구를 생성해주세요.")
             return
 
-        self.refresh_status()
-        if not adb_service.is_connected():
+        ip = get_phone_ip()
+        if not ip:
             QMessageBox.warning(
-                self.window(), "ADB 미연결",
-                "센터폰이 ADB로 연결되어 있지 않습니다.\n"
-                "USB 또는 WiFi ADB 연결 후 다시 시도하세요."
+                self.window(), "설정 필요",
+                "⚙ 설정에서 센터폰 IP를 먼저 입력해주세요."
             )
             return
 
         try:
-            adb_service.send_kakao(target, message)
+            adb_service.send_kakao(ip, target, message)
             QMessageBox.information(
                 self.window(), "전송 완료", f"{target}방으로 전송했습니다."
             )
+            self.refresh_status()
         except Exception as exc:
             QMessageBox.critical(self.window(), "전송 실패", str(exc))

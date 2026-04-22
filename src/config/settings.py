@@ -13,6 +13,7 @@ _KEY_DAILY_FILE = "daily_file"
 _KEY_TOTAL_SALES_FILE = "total_sales_file"
 _KEY_TOTAL_SALES_PASSWORD = "total_sales_password"
 _KEY_EXPENSE_DAILY_SHEET = "expense_daily_sheet"
+_KEY_PHONE_IP = "phone_ip"
 
 
 def load_settings() -> dict:
@@ -34,6 +35,10 @@ def save_settings(settings: dict) -> None:
 
 def get_password() -> str | None:
     return load_settings().get(_KEY_TOTAL_SALES_PASSWORD) or None
+
+
+def get_phone_ip() -> str:
+    return load_settings().get(_KEY_PHONE_IP, "") or ""
 
 
 def get_expense_daily_sheet() -> str:

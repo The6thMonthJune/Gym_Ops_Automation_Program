@@ -1,60 +1,35 @@
 from __future__ import annotations
 
-import base64
-import subprocess
-import threading
-import time
+import json
+import urllib.error
+import urllib.request
 
-_ADB_IME = "com.android.adbkeyboard/.AdbIME"
-_LOCK = threading.Lock()
+_PORT = 9094
 
 
-def _shell(*args: str, timeout: int = 10) -> str:
-    try:
-        result = subprocess.run(
-            ["adb", "shell", *args],
-            capture_output=True, text=True, timeout=timeout,
-        )
-        return result.stdout.strip()
-    except FileNotFoundError:
-        raise RuntimeError("ADB를 찾을 수 없습니다. PATH에 adb가 등록돼 있는지 확인하세요.")
-    except subprocess.TimeoutExpired:
-        raise RuntimeError("ADB 명령 시간 초과.")
-
-
-def is_connected() -> bool:
-    try:
-        result = subprocess.run(
-            ["adb", "devices"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return any(
-            line.endswith("\tdevice")
-            for line in result.stdout.splitlines()
-        )
-    except Exception:
-        return False
-
-
-def send_kakao(target: str, message: str) -> None:
+def send_kakao(phone_ip: str, target: str, message: str) -> None:
     """
     target: "직원" | "알바"
-    센터폰 카카오톡이 트리거방에 열려 있어야 하며, ADBKeyboard 앱이 설치돼 있어야 함.
+    센터폰 메신저봇R HTTP 서버로 POST 요청을 보낸다.
     """
-    trigger_msg = f"[{target}]{message}"
-    encoded = base64.b64encode(trigger_msg.encode("utf-8")).decode("ascii")
+    url = f"http://{phone_ip}:{_PORT}"
+    payload = json.dumps({"target": target, "msg": message}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=payload, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as res:
+            res.read()
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"센터폰 연결 실패 ({phone_ip}:{_PORT}): {e.reason}")
 
-    with _LOCK:
-        original_ime = _shell("settings", "get", "secure", "default_input_method")
-        try:
-            _shell("ime", "set", _ADB_IME)
-            subprocess.run(
-                ["adb", "shell", "am", "broadcast",
-                 "-a", "ADB_INPUT_B64", "--es", "msg", encoded],
-                capture_output=True, timeout=10,
-            )
-            time.sleep(0.5)  # 입력 완료 대기
-            _shell("input", "keyevent", "66")  # Enter → 전송
-        finally:
-            if original_ime:
-                _shell("ime", "set", original_ime)
+
+def is_reachable(phone_ip: str) -> bool:
+    try:
+        url = f"http://{phone_ip}:{_PORT}"
+        req = urllib.request.Request(url, data=b"{}", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=2) as res:
+            res.read()
+        return True
+    except Exception:
+        return False
