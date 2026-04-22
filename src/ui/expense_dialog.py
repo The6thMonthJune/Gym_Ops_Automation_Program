@@ -26,6 +26,7 @@ from src.services.expense_service import (
     write_expense_to_total,
 )
 from src.config.settings import get_password, get_expense_daily_sheet
+from src.ui._kakao_send_widget import KakaoSendWidget
 
 
 class ExpenseDialog(QDialog):
@@ -111,6 +112,9 @@ class ExpenseDialog(QDialog):
         copy_btn = QPushButton("복사")
         copy_btn.clicked.connect(self._copy_message)
         layout.addWidget(copy_btn)
+
+        self._kakao_widget = KakaoSendWidget(self._get_kakao_message)
+        layout.addWidget(self._kakao_widget)
 
         self.setLayout(layout)
 
@@ -209,6 +213,10 @@ class ExpenseDialog(QDialog):
             QMessageBox.critical(self, "오류", "\n".join(errors))
         if results:
             QMessageBox.information(self, "완료", "\n".join(results))
+
+    def _get_kakao_message(self) -> str | None:
+        text = self.output.toPlainText().strip()
+        return text if text else None
 
     def _copy_message(self) -> None:
         text = self.output.toPlainText().strip()
