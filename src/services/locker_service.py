@@ -72,16 +72,28 @@ def merge_records(
     """기존 레코드에 새 레코드를 병합한다.
     락커번호(>0)가 같으면 새 데이터로 덮어쓰고, 기존에 없는 락커는 추가한다.
     락커번호=0인 미배정 회원은 이름으로 중복 체크한다.
+    회원이 다른 락커로 이동한 경우 기존 락커 항목을 제거한다.
     """
+    # 새 데이터에서 이름 → 새 락커번호 매핑 (락커 이동 감지용)
+    new_name_to_locker: dict[str, int] = {
+        r.member_name: r.locker_number
+        for r in new
+        if r.locker_number > 0
+    }
+
     merged: dict[str, LockerRecord] = {}
-    # 기존 데이터 먼저 적재 (키: 락커번호 or 이름)
     for r in existing:
         key = str(r.locker_number) if r.locker_number > 0 else f"name:{r.member_name}"
+        # 새 데이터에서 이 회원이 다른 락커로 이동했으면 기존 항목 제외
+        new_locker = new_name_to_locker.get(r.member_name)
+        if r.locker_number > 0 and new_locker is not None and new_locker != r.locker_number:
+            continue
         merged[key] = r
-    # 새 데이터로 upsert
+
     for r in new:
         key = str(r.locker_number) if r.locker_number > 0 else f"name:{r.member_name}"
         merged[key] = r
+
     return list(merged.values())
 
 
