@@ -13,7 +13,7 @@ def send_kakao(phone_ip: str, target: str, message: str) -> None:
     센터폰 메신저봇R HTTP 서버로 POST 요청을 보낸다.
     """
     url = f"http://{phone_ip}:{_PORT}"
-    payload = json.dumps({"target": target, "msg": message}, ensure_ascii=False).encode("utf-8")
+    payload = json.dumps({"target": target, "msg": message}, ensure_ascii=True).encode("utf-8")
     req = urllib.request.Request(
         url, data=payload, headers={"Content-Type": "application/json"}
     )
