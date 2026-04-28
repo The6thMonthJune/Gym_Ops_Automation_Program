@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from src.core.file_naming import extract_date_from_filename
 from src.services.daily_file_service import create_next_daily_file
 from src.services.sales_report_service import build_sales_report_text, read_sales_values
+from src.services.locker_service import count_by_state, build_member_report_text, load_records
 from src.ui.payment_dialog import PaymentDialog
 from src.ui.settings_dialog import SettingsDialog
 from src.config.constants import APP_NAME
@@ -294,15 +295,24 @@ class MainWindow(QMainWindow):
         row2.addWidget(total_frame)
         lay.addLayout(row2)
 
-        # 보고 문구 복사 버튼
-        copy_btn = QPushButton("📋  보고 문구 복사")
-        copy_btn.setFixedHeight(36)
-        copy_btn.setStyleSheet("""
+        # 버튼 행
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        _btn_style = """
             QPushButton { background: #F3F4F6; color: #374151; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; }
             QPushButton:hover { background: #E5E7EB; }
-        """)
+        """
+        copy_btn = QPushButton("📋  보고 문구 복사")
+        copy_btn.setFixedHeight(36)
+        copy_btn.setStyleSheet(_btn_style)
         copy_btn.clicked.connect(self._copy_report)
-        lay.addWidget(copy_btn)
+        member_btn = QPushButton("👥  회원 현황 보고")
+        member_btn.setFixedHeight(36)
+        member_btn.setStyleSheet(_btn_style)
+        member_btn.clicked.connect(self._copy_member_report)
+        btn_row.addWidget(copy_btn)
+        btn_row.addWidget(member_btn)
+        lay.addLayout(btn_row)
 
         return _shadow_card(lay)
 
@@ -500,6 +510,16 @@ class MainWindow(QMainWindow):
             text = build_sales_report_text(report_date, sales)
             QApplication.clipboard().setText(text)
             QMessageBox.information(self, "완료", "보고 문구를 클립보드에 복사했습니다.")
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", str(exc))
+
+    def _copy_member_report(self) -> None:
+        try:
+            records = load_records()
+            counts = count_by_state(records)
+            text = build_member_report_text(date.today(), counts)
+            QApplication.clipboard().setText(text)
+            QMessageBox.information(self, "완료", "회원 현황 보고 문구를 클립보드에 복사했습니다.")
         except Exception as exc:
             QMessageBox.critical(self, "오류", str(exc))
 

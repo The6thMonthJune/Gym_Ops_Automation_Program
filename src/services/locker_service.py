@@ -29,6 +29,8 @@ class LockerCell:
 
 
 def _compute_state(record: LockerRecord) -> str:
+    if record.is_holding:
+        return "holding"
     today = date.today()
     # 예정: 시작일이 오늘 이후
     if record.start_date and record.start_date > today:
@@ -107,6 +109,7 @@ def save_records(records: list[LockerRecord]) -> None:
             "has_key":       r.has_key,
             "expiry_date":   r.expiry_date.isoformat() if r.expiry_date else None,
             "start_date":    r.start_date.isoformat() if r.start_date else None,
+            "is_holding":    r.is_holding,
         }
         for r in records
     ]
@@ -131,6 +134,7 @@ def load_records() -> list[LockerRecord]:
                 has_key=item.get("has_key", True),
                 expiry_date=expiry,
                 start_date=start,
+                is_holding=item.get("is_holding", False),
             ))
         return records
     except Exception:
@@ -139,3 +143,31 @@ def load_records() -> list[LockerRecord]:
 
 def get_locker_json_path() -> Path:
     return _LOCKER_JSON
+
+
+def count_by_state(records: list[LockerRecord]) -> dict[str, int]:
+    """상태별 회원 수를 반환한다."""
+    counts = {"active": 0, "expired": 0, "scheduled": 0, "imminent": 0, "holding": 0, "unassigned": 0}
+    for rec in records:
+        if rec.locker_number <= 0 and rec.has_key:
+            counts["unassigned"] += 1
+        elif rec.locker_number > 0:
+            state = _compute_state(rec)
+            if state in counts:
+                counts[state] += 1
+    return counts
+
+
+def build_member_report_text(report_date: date, counts: dict[str, int]) -> str:
+    """대표 보고용 유효회원 현황 문구를 반환한다."""
+    total = sum(counts.values())
+    return (
+        f"[{report_date.month}월 {report_date.day}일 리와인드 중산점 유효회원]\n"
+        f"활성: {counts.get('active', 0)}명\n"
+        f"만료: {counts.get('expired', 0)}명\n"
+        f"예정: {counts.get('scheduled', 0)}명\n"
+        f"임박: {counts.get('imminent', 0)}명\n"
+        f"홀딩: {counts.get('holding', 0)}명\n"
+        f"미등록: {counts.get('unassigned', 0)}명\n\n"
+        f"총: {total}명"
+    )

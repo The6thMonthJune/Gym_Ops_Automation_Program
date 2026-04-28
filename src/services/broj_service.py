@@ -15,6 +15,7 @@ class LockerRecord:
     has_key: bool          # 보유 대여권 여부
     expiry_date: date | None
     start_date: date | None
+    is_holding: bool = False  # 브로제이 A열이 "홀딩"인 회원
 
 
 # BROJ 구역명 → 내부 구역명
@@ -175,6 +176,9 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
             if not name or name.lower() == "none":
                 continue
 
+            # A열(index 0)이 "홀딩"이면 홀딩 회원
+            is_holding = str(row_vals[0] or "").strip() == "홀딩"
+
             # 보유 대여권 여부
             key_val = _get_cell(row_vals, ci_key)
             has_key = (
@@ -197,6 +201,7 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
                 has_key=has_key,
                 expiry_date=_parse_date(_get_cell(row_vals, ci_expiry)),
                 start_date=_parse_date(_get_cell(row_vals, ci_start)),
+                is_holding=is_holding,
             ))
 
         book.close()
