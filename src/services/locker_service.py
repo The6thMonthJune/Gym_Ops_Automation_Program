@@ -73,7 +73,7 @@ def merge_records(
 ) -> list[LockerRecord]:
     """기존 레코드에 새 레코드를 병합한다.
     락커번호(>0)가 같으면 새 데이터로 덮어쓰고, 기존에 없는 락커는 추가한다.
-    락커번호=0인 미배정 회원은 이름으로 중복 체크한다.
+    락커번호=0인 회원은 새 데이터로 전체 교체한다 (이름 충돌 방지를 위해 인덱스 키 사용).
     회원이 다른 락커로 이동한 경우 기존 락커 항목을 제거한다.
     """
     # 새 데이터에서 이름 → 새 락커번호 매핑 (락커 이동 감지용)
@@ -83,18 +83,24 @@ def merge_records(
         if r.locker_number > 0
     }
 
+    # 기존 락카 레코드만 유지 (락카번호=0인 기존 레코드는 새 데이터로 대체)
     merged: dict[str, LockerRecord] = {}
     for r in existing:
-        key = str(r.locker_number) if r.locker_number > 0 else f"name:{r.member_name}"
-        # 새 데이터에서 이 회원이 다른 락커로 이동했으면 기존 항목 제외
+        if r.locker_number <= 0:
+            continue  # 락카 없는 기존 레코드는 새 데이터로 교체
+        key = str(r.locker_number)
         new_locker = new_name_to_locker.get(r.member_name)
-        if r.locker_number > 0 and new_locker is not None and new_locker != r.locker_number:
-            continue
+        if new_locker is not None and new_locker != r.locker_number:
+            continue  # 다른 락카로 이동
         merged[key] = r
 
-    for r in new:
-        key = str(r.locker_number) if r.locker_number > 0 else f"name:{r.member_name}"
-        merged[key] = r
+    # 새 데이터 적용
+    for i, r in enumerate(new):
+        if r.locker_number > 0:
+            merged[str(r.locker_number)] = r
+        else:
+            # 인덱스 키로 이름 충돌 없이 전체 회원 보존
+            merged[f"nl:{i}"] = r
 
     return list(merged.values())
 

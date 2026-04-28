@@ -47,6 +47,7 @@ _COLORS: dict[str, dict[str, str]] = {
     "imminent":  {"bg": "#FEE2E2", "border": "#FECACA", "num": "#7F1D1D", "name": "#991B1B", "sub": "#DC2626"},
     "expired":   {"bg": "#D1D5DB", "border": "#9CA3AF", "num": "#4B5563", "name": "#374151", "sub": "#6B7280"},
     "scheduled": {"bg": "#FEF9C3", "border": "#FDE047", "num": "#713F12", "name": "#854D0E", "sub": "#A16207"},
+    "holding":   {"bg": "#EDE9FE", "border": "#C4B5FD", "num": "#4C1D95", "name": "#5B21B6", "sub": "#7C3AED"},
     "empty":     {"bg": "#F3F4F6", "border": "#E5E7EB", "num": "#D1D5DB", "name": "#9CA3AF", "sub": "#D1D5DB"},
     "unassigned":{"bg": "#FFEDD5", "border": "#FDBA74", "num": "#7C2D12", "name": "#9A3412", "sub": "#C2410C"},
 }
@@ -293,6 +294,7 @@ class LockerDialog(QDialog):
             ("imminent",   "만료 임박"),
             ("scheduled",  "예정"),
             ("expired",    "만료"),
+            ("holding",    "홀딩"),
             ("empty",      "빈 칸"),
             ("unassigned", "미배정"),
         ]:
