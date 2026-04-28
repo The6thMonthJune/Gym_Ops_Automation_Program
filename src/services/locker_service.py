@@ -151,7 +151,7 @@ def count_by_state(records: list[LockerRecord]) -> dict[str, int]:
     for rec in records:
         if rec.locker_number <= 0 and rec.has_key:
             counts["unassigned"] += 1
-        elif rec.locker_number > 0:
+        else:
             state = _compute_state(rec)
             if state in counts:
                 counts[state] += 1

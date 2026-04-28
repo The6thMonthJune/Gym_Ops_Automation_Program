@@ -190,10 +190,6 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
             locker_val = _get_cell(row_vals, ci_locker)
             room, locker_num = _parse_locker_combined(locker_val)
 
-            # 락카 무관 회원 스킵
-            if not has_key and locker_num == 0:
-                continue
-
             records.append(LockerRecord(
                 member_name=name,
                 locker_room=room,
