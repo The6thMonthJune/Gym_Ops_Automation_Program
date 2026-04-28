@@ -106,6 +106,6 @@ class KakaoSendWidget(QWidget):
             QMessageBox.information(
                 self.window(), "전송 완료", f"{target}방으로 전송했습니다."
             )
-            self.refresh_status()
+            self.window().accept()
         except Exception as exc:
             QMessageBox.critical(self.window(), "전송 실패", str(exc))

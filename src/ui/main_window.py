@@ -649,7 +649,7 @@ class MainWindow(QMainWindow):
             self._total_path_row.set_path(path)
 
     def _save_paths(self) -> None:
-        save_settings({
-            _KEY_DAILY_FILE: self._path_daily,
-            _KEY_TOTAL_SALES_FILE: self._path_total,
-        })
+        s = load_settings()
+        s[_KEY_DAILY_FILE] = self._path_daily
+        s[_KEY_TOTAL_SALES_FILE] = self._path_total
+        save_settings(s)
