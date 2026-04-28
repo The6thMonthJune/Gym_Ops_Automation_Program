@@ -4,7 +4,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt, Signal
-from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent
+from PySide6.QtGui import QColor, QCursor, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -28,248 +27,26 @@ from src.ui.payment_dialog import PaymentDialog
 from src.ui.settings_dialog import SettingsDialog
 from src.config.constants import APP_NAME
 from src.config.settings import (
-    load_settings,
-    save_settings,
     _KEY_DAILY_FILE,
     _KEY_TOTAL_SALES_FILE,
+    load_settings,
+    save_settings,
 )
 
-# ── 색상 ────────────────────────────────────────────────────────
-_NAVY   = "#1E2D3D"
-_BLUE   = "#4A6FA5"
-_WHITE  = "#FFFFFF"
-_BG     = "#F4F5F7"
-_BORDER = "#D1D5DB"
+_NAVY = "#1E2D3D"
+_WHITE = "#FFFFFF"
+_BG = "#F3F4F6"
 
-APP_QSS = f"""
-QWidget {{ font-family: "Malgun Gothic", "맑은 고딕", sans-serif; }}
-
-/* 카드 */
-QFrame#card {{
-    background: {_WHITE};
-    border: 1px solid #E5E7EB;
-    border-radius: 8px;
-}}
-
-/* 드롭존 — QLabel 자식도 배경 투명 처리 */
-QFrame#drop-zone {{
-    background-color: #F0F5FF;
-    border: 2px dashed {_BLUE};
-    border-radius: 6px;
-    min-height: 100px;
-}}
-QFrame#drop-zone[drag-hover="true"] {{
-    background-color: #D6E4FF;
-    border-color: #2A5AB3;
-}}
-QFrame#drop-zone QLabel {{
-    background-color: transparent;
-    border: none;
-}}
-
-/* 파일 경로 박스 */
-QFrame#file-path-box {{
-    background-color: {_BG};
-    border: 1px solid {_BORDER};
-    border-radius: 4px;
-    min-height: 32px;
-    max-height: 32px;
-}}
-QFrame#file-path-box[has-file="true"] {{
-    background-color: #F0F5FF;
-    border-color: {_BLUE};
-}}
-QFrame#file-path-box QLabel {{
-    background-color: transparent;
-    border: none;
-    color: #9CA3AF;
-    font-size: 11px;
-}}
-QFrame#file-path-box[has-file="true"] QLabel {{
-    color: {_NAVY};
-}}
-
-/* 섹션 라벨 */
-QLabel#section-label {{
-    font-size: 12px; font-weight: 700; color: {_NAVY};
-    background: transparent; border: none;
-}}
-QLabel#drop-hint {{
-    color: #6B7FA8; font-size: 11px;
-    background: transparent; border: none;
-}}
-
-/* 버튼 공통 */
-QPushButton {{ outline: none; }}
-
-QPushButton#btn-browse {{
-    background-color: {_BLUE}; color: white; border: none;
-    border-radius: 4px; font-size: 11px; font-weight: 700;
-    min-width: 72px; max-width: 72px; min-height: 32px; max-height: 32px;
-}}
-QPushButton#btn-browse:hover {{ background-color: #3B5998; }}
-
-QPushButton#btn-primary {{
-    background-color: {_NAVY}; color: white; border: none;
-    border-radius: 6px; font-size: 12px; font-weight: 700;
-    min-height: 36px; max-height: 36px;
-}}
-QPushButton#btn-primary:hover {{ background-color: #2A3F56; }}
-
-QPushButton#btn-secondary {{
-    background-color: {_BG}; color: #374151;
-    border: 1px solid {_BORDER}; border-radius: 6px;
-    font-size: 12px; min-height: 36px; max-height: 36px;
-}}
-QPushButton#btn-secondary:hover {{ background-color: #E9EBF0; }}
-
-QPushButton#btn-expense {{
-    background-color: #FFF7ED; color: #EA580C;
-    border: 1px solid #FED7AA; border-radius: 6px;
-    font-size: 12px; font-weight: 700;
-    min-height: 44px; max-height: 44px;
-}}
-QPushButton#btn-expense:hover {{ background-color: #FFEDD5; }}
-
-QPushButton#btn-payment {{
-    background-color: #F0FDF4; color: #16A34A;
-    border: 1px solid #BBF7D0; border-radius: 6px;
-    font-size: 12px; font-weight: 700;
-    min-height: 44px; max-height: 44px;
-}}
-QPushButton#btn-payment:hover {{ background-color: #DCFCE7; }}
-
-QPushButton#btn-viewer {{
-    background-color: #EFF6FF; color: #1D4ED8;
-    border: 1px solid #BFDBFE; border-radius: 6px;
-    font-size: 12px; font-weight: 700;
-    min-height: 44px; max-height: 44px;
-}}
-QPushButton#btn-viewer:hover {{ background-color: #DBEAFE; }}
-
-QPushButton#btn-settings {{
-    background-color: {_WHITE}; color: #6B7280;
-    border: 1px solid {_BORDER}; border-radius: 6px;
-    font-size: 12px; min-height: 36px; max-height: 36px;
-}}
-QPushButton#btn-settings:hover {{ background-color: {_BG}; }}
-
-QTextEdit#result-text {{
-    background-color: #F9FAFB; border: 1px solid #E5E7EB;
-    border-radius: 6px; font-size: 12px; color: {_NAVY};
-    padding: 6px;
-}}
+APP_QSS = """
+QWidget { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; }
+QPushButton { outline: none; }
 """
 
 
-# ── 드롭존 위젯 ──────────────────────────────────────────────────
-
-class DropZone(QFrame):
-    """점선 드롭 영역. 파일을 드롭하거나 직접 setText로 경로 설정 가능."""
-
-    file_dropped = Signal(str)
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self.setObjectName("drop-zone")
-        self.setAcceptDrops(True)
-
-        layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignCenter)
-        layout.setSpacing(4)
-        layout.setContentsMargins(12, 12, 12, 12)
-
-        icon = QLabel("↑")
-        icon.setAlignment(Qt.AlignCenter)
-        icon.setStyleSheet(f"font-size: 20px; color: {_BLUE}; background: transparent;")
-
-        hint = QLabel("오늘 날짜의 엑셀 파일을 여기에 드래그하거나\n'파일 선택'을 눌러주세요")
-        hint.setObjectName("drop-hint")
-        hint.setAlignment(Qt.AlignCenter)
-        hint.setWordWrap(True)
-
-        layout.addWidget(icon)
-        layout.addWidget(hint)
-        self.setLayout(layout)
-
-    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
-        if event.mimeData().hasUrls():
-            if any(u.toLocalFile().endswith(".xlsx") for u in event.mimeData().urls()):
-                self.setProperty("drag-hover", "true")
-                self._refresh_style()
-                event.acceptProposedAction()
-                return
-        event.ignore()
-
-    def dragLeaveEvent(self, event) -> None:
-        self.setProperty("drag-hover", "false")
-        self._refresh_style()
-
-    def dropEvent(self, event: QDropEvent) -> None:
-        self.setProperty("drag-hover", "false")
-        self._refresh_style()
-        paths = [u.toLocalFile() for u in event.mimeData().urls() if u.toLocalFile().endswith(".xlsx")]
-        if paths:
-            self.file_dropped.emit(paths[0])
-
-    def _refresh_style(self) -> None:
-        self.style().unpolish(self)
-        self.style().polish(self)
-
-
-# ── 파일 경로 표시 위젯 ──────────────────────────────────────────
-
-class FilePathRow(QWidget):
-    """파일 경로 라벨 + 파일 선택 버튼 행."""
-
-    browse_clicked = Signal()
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-
-        self._box = QFrame()
-        self._box.setObjectName("file-path-box")
-        box_layout = QHBoxLayout()
-        box_layout.setContentsMargins(10, 0, 10, 0)
-        self._label = QLabel("파일이 등록되면 여기에 파일명이 표시됩니다")
-        self._label.setObjectName("path-text")
-        box_layout.addWidget(self._label)
-        self._box.setLayout(box_layout)
-
-        browse_btn = QPushButton("파일 선택")
-        browse_btn.setFixedSize(72, 32)
-        browse_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {_BLUE}; color: white; border: none;
-                border-radius: 4px; font-size: 11px; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #3B5998; }}
-        """)
-        browse_btn.clicked.connect(self.browse_clicked)
-
-        layout.addWidget(self._box)
-        layout.addWidget(browse_btn)
-        self.setLayout(layout)
-
-    def set_path(self, path: str) -> None:
-        has = bool(path)
-        display = Path(path).name if has else "파일이 등록되면 여기에 파일명이 표시됩니다"
-        self._label.setText(display)
-        self._label.setProperty("has-file", "true" if has else "false")
-        self._box.setProperty("has-file", "true" if has else "false")
-        for w in (self._label, self._box):
-            w.style().unpolish(w)
-            w.style().polish(w)
-
-
-# ── 카드 팩토리 ──────────────────────────────────────────────────
-
-def _card(layout: QVBoxLayout | QHBoxLayout) -> QFrame:
+def _shadow_card(layout) -> QFrame:
     frame = QFrame()
-    frame.setObjectName("card")
+    frame.setObjectName("shadow-card")
+    frame.setStyleSheet("QFrame#shadow-card { background: #FFFFFF; border-radius: 12px; }")
     frame.setLayout(layout)
     shadow = QGraphicsDropShadowEffect()
     shadow.setBlurRadius(8)
@@ -279,10 +56,107 @@ def _card(layout: QVBoxLayout | QHBoxLayout) -> QFrame:
     return frame
 
 
-def _section_label(text: str) -> QLabel:
-    lbl = QLabel(text)
-    lbl.setObjectName("section-label")
-    return lbl
+# ── 파일 경로 행 ──────────────────────────────────────────────────
+
+class _SlimFileRow(QFrame):
+    browse_clicked = Signal()
+
+    def __init__(self, label: str, parent=None) -> None:
+        super().__init__(parent)
+        self.setFixedHeight(34)
+        self.setObjectName("slim-row")
+        self.setStyleSheet("""
+            QFrame#slim-row { background: #F9FAFB; border-radius: 6px; border: 1px solid #E5E7EB; }
+            QLabel { background: transparent; border: none; }
+        """)
+
+        lay = QHBoxLayout()
+        lay.setContentsMargins(10, 0, 8, 0)
+        lay.setSpacing(8)
+
+        type_lbl = QLabel(label)
+        type_lbl.setFixedWidth(58)
+        type_lbl.setStyleSheet("color: #6B7280; font-size: 11px; background: transparent; border: none;")
+
+        self._path_lbl = QLabel("파일 미등록")
+        self._path_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self._path_lbl.setStyleSheet("color: #9CA3AF; font-size: 11px; background: transparent; border: none;")
+
+        browse_btn = QPushButton("📂")
+        browse_btn.setFixedSize(24, 24)
+        browse_btn.setStyleSheet("""
+            QPushButton { background: transparent; border: none; font-size: 13px; }
+            QPushButton:hover { background: #E5E7EB; border-radius: 4px; }
+        """)
+        browse_btn.clicked.connect(self.browse_clicked)
+
+        lay.addWidget(type_lbl)
+        lay.addWidget(self._path_lbl, 1)
+        lay.addWidget(browse_btn)
+        self.setLayout(lay)
+
+    def set_path(self, path: str) -> None:
+        if path:
+            self._path_lbl.setText(Path(path).name)
+            self._path_lbl.setStyleSheet(
+                "color: #3B82F6; font-size: 11px; font-weight: 500; background: transparent; border: none;"
+            )
+        else:
+            self._path_lbl.setText("파일 미등록")
+            self._path_lbl.setStyleSheet(
+                "color: #9CA3AF; font-size: 11px; background: transparent; border: none;"
+            )
+
+
+# ── 큰 바로가기 버튼 ──────────────────────────────────────────────
+
+class _BigBtn(QFrame):
+    clicked = Signal()
+
+    def __init__(self, emoji: str, text: str, bg: str, hover: str, parent=None) -> None:
+        super().__init__(parent)
+        self._bg = bg
+        self._hover = hover
+        self.setFixedHeight(90)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setCursor(QCursor(Qt.PointingHandCursor))
+        self._paint(bg)
+
+        lay = QVBoxLayout()
+        lay.setAlignment(Qt.AlignCenter)
+        lay.setSpacing(8)
+        lay.setContentsMargins(8, 8, 8, 8)
+
+        em = QLabel(emoji)
+        em.setAlignment(Qt.AlignCenter)
+        em.setStyleSheet("font-size: 22px; background: transparent; border: none;")
+
+        tx = QLabel(text)
+        tx.setAlignment(Qt.AlignCenter)
+        tx.setStyleSheet("color: white; font-size: 14px; font-weight: 700; background: transparent; border: none;")
+
+        lay.addWidget(em)
+        lay.addWidget(tx)
+        self.setLayout(lay)
+
+    def _paint(self, color: str) -> None:
+        self.setStyleSheet(f"""
+            QFrame {{ background: {color}; border-radius: 12px; }}
+            QLabel {{ background: transparent; border: none; }}
+        """)
+
+    def enterEvent(self, event) -> None:
+        self._paint(self._hover)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._paint(self._bg)
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 # ── 메인 윈도우 ──────────────────────────────────────────────────
@@ -292,49 +166,43 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_NAME)
         self.setStyleSheet(APP_QSS)
+        self.setAcceptDrops(True)
         self._path_daily = ""
         self._path_total = ""
         self._setup_ui()
         self._load_saved_paths()
         self._auto_setup_today_file()
         self._ensure_next_file_exists()
+        self._refresh_sales()
 
         self._last_checked_date = date.today()
         timer = QTimer(self)
         timer.timeout.connect(self._check_date_change)
         timer.start(60_000)
 
-    # ── UI 구성 ────────────────────────────────────────────────
+    # ── UI 구성 ───────────────────────────────────────────────────
 
     def _setup_ui(self) -> None:
         central = QWidget()
-        central.setObjectName("central")
         central.setStyleSheet(f"background: {_BG};")
 
         root = QVBoxLayout()
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-
-        # 타이틀바
         root.addWidget(self._build_title_bar())
 
-        # 본문 스크롤 영역
         body = QWidget()
         body.setStyleSheet(f"background: {_BG};")
-        body_layout = QVBoxLayout()
-        body_layout.setContentsMargins(16, 16, 16, 16)
-        body_layout.setSpacing(12)
+        body_lay = QVBoxLayout()
+        body_lay.setContentsMargins(14, 14, 14, 14)
+        body_lay.setSpacing(12)
+        body_lay.addWidget(self._build_file_section())
+        body_lay.addWidget(self._build_sales_card())
+        body_lay.addWidget(self._build_shortcuts())
+        body_lay.addStretch()
+        body.setLayout(body_lay)
 
-        body_layout.addWidget(self._build_daily_card())
-        body_layout.addWidget(self._build_result_card())
-        body_layout.addWidget(self._build_action_card())
-        body_layout.addWidget(self._build_total_card())
-        body_layout.addWidget(self._build_locker_card())
-        body_layout.addWidget(self._build_settings_btn())
-
-        body.setLayout(body_layout)
         root.addWidget(body)
-
         central.setLayout(root)
         self.setCentralWidget(central)
 
@@ -342,149 +210,194 @@ class MainWindow(QMainWindow):
         bar = QWidget()
         bar.setFixedHeight(48)
         bar.setStyleSheet(f"background: {_NAVY};")
-        layout = QHBoxLayout()
-        layout.setContentsMargins(20, 0, 20, 0)
+
+        lay = QHBoxLayout()
+        lay.setContentsMargins(16, 0, 16, 0)
+
         title = QLabel(APP_NAME)
-        title.setStyleSheet("color: white; font-size: 13px; font-weight: 700; background: transparent;")
-        layout.addWidget(title)
-        bar.setLayout(layout)
+        title.setStyleSheet(
+            "color: white; font-size: 12px; font-weight: 700; background: transparent;"
+        )
+
+        settings_btn = QPushButton("⚙")
+        settings_btn.setFixedSize(32, 32)
+        settings_btn.setStyleSheet("""
+            QPushButton { background: transparent; border: none; color: #9CA3AF; font-size: 16px; }
+            QPushButton:hover { color: white; }
+        """)
+        settings_btn.clicked.connect(self._open_settings)
+
+        lay.addWidget(title)
+        lay.addStretch()
+        lay.addWidget(settings_btn)
+        bar.setLayout(lay)
         return bar
 
-    def _build_daily_card(self) -> QFrame:
-        layout = QVBoxLayout()
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(10)
+    def _build_file_section(self) -> QFrame:
+        lay = QVBoxLayout()
+        lay.setContentsMargins(16, 10, 16, 10)
+        lay.setSpacing(8)
 
-        layout.addWidget(_section_label("📅  데일리 엑셀 파일"))
+        section_lbl = QLabel("파일 경로")
+        section_lbl.setStyleSheet(
+            "color: #9CA3AF; font-size: 10px; font-weight: 600; background: transparent; border: none;"
+        )
+        lay.addWidget(section_lbl)
 
-        self._drop_zone = DropZone()
-        self._drop_zone.file_dropped.connect(self._set_daily_path)
-        layout.addWidget(self._drop_zone)
-
-        self._daily_path_row = FilePathRow()
+        self._daily_path_row = _SlimFileRow("데일리 파일")
         self._daily_path_row.browse_clicked.connect(self._browse_daily)
-        layout.addWidget(self._daily_path_row)
+        lay.addWidget(self._daily_path_row)
 
-        report_btn = QPushButton("↗  매출 보고 문구 생성")
-        report_btn.setFixedHeight(36)
-        report_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {_NAVY}; color: white; border: none;
-                border-radius: 6px; font-size: 12px; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #2A3F56; }}
+        self._total_path_row = _SlimFileRow("총매출 파일")
+        self._total_path_row.browse_clicked.connect(self._browse_total)
+        lay.addWidget(self._total_path_row)
+
+        return _shadow_card(lay)
+
+    def _build_sales_card(self) -> QFrame:
+        lay = QVBoxLayout()
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(10)
+
+        # 헤더
+        header = QHBoxLayout()
+        header_title = QLabel("오늘 매출 요약")
+        header_title.setStyleSheet(
+            "color: #111827; font-size: 14px; font-weight: 700; background: transparent; border: none;"
+        )
+        refresh_btn = QPushButton("↻")
+        refresh_btn.setFixedSize(28, 28)
+        refresh_btn.setStyleSheet("""
+            QPushButton { background: #F3F4F6; border: none; border-radius: 6px; font-size: 14px; color: #6B7280; }
+            QPushButton:hover { background: #E5E7EB; }
         """)
-        report_btn.clicked.connect(self._generate_report)
-        layout.addWidget(report_btn)
+        refresh_btn.clicked.connect(self._refresh_sales)
+        header.addWidget(header_title)
+        header.addStretch()
+        header.addWidget(refresh_btn)
+        lay.addLayout(header)
 
-        return _card(layout)
+        # 통계 그리드
+        row1 = QHBoxLayout()
+        row1.setSpacing(10)
+        cash_frame, self._cash_lbl = self._make_stat_frame("현금")
+        card_frame, self._card_lbl = self._make_stat_frame("카드")
+        row1.addWidget(cash_frame)
+        row1.addWidget(card_frame)
+        lay.addLayout(row1)
 
-    def _build_result_card(self) -> QFrame:
-        layout = QVBoxLayout()
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(10)
+        row2 = QHBoxLayout()
+        row2.setSpacing(10)
+        acct_frame, self._transfer_lbl = self._make_stat_frame("계좌")
+        total_frame, self._total_lbl = self._make_stat_frame("총합", is_total=True)
+        row2.addWidget(acct_frame)
+        row2.addWidget(total_frame)
+        lay.addLayout(row2)
 
-        layout.addWidget(_section_label("💬  생성 결과"))
-
-        self._result_text = QTextEdit()
-        self._result_text.setObjectName("result-text")
-        self._result_text.setReadOnly(True)
-        self._result_text.setFixedHeight(140)
-        self._result_text.setPlaceholderText("매출 보고 문구 생성 버튼을 누르면 여기에 네이트온 문구가 표시됩니다.")
-        layout.addWidget(self._result_text)
-
-        copy_btn = QPushButton("📋  복사")
+        # 보고 문구 복사 버튼
+        copy_btn = QPushButton("📋  보고 문구 복사")
         copy_btn.setFixedHeight(36)
-        copy_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {_BG}; color: #374151;
-                border: 1px solid {_BORDER}; border-radius: 6px; font-size: 12px;
-            }}
-            QPushButton:hover {{ background-color: #E9EBF0; }}
+        copy_btn.setStyleSheet("""
+            QPushButton { background: #F3F4F6; color: #374151; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; }
+            QPushButton:hover { background: #E5E7EB; }
         """)
         copy_btn.clicked.connect(self._copy_report)
-        layout.addWidget(copy_btn)
+        lay.addWidget(copy_btn)
 
-        return _card(layout)
+        return _shadow_card(lay)
 
-    def _build_action_card(self) -> QFrame:
-        layout = QHBoxLayout()
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(8)
-
-        expense_btn = QPushButton("🧾  지출 입력")
-        expense_btn.setObjectName("btn-expense")
-        expense_btn.clicked.connect(self._open_expense)
-
-        payment_btn = QPushButton("💳  결제 입력")
-        payment_btn.setObjectName("btn-payment")
-        payment_btn.clicked.connect(self._open_payment)
-
-        viewer_btn = QPushButton("📋  내역 조회")
-        viewer_btn.setObjectName("btn-viewer")
-        viewer_btn.clicked.connect(self._open_entry_viewer)
-
-        layout.addWidget(expense_btn)
-        layout.addWidget(payment_btn)
-        layout.addWidget(viewer_btn)
-
-        return _card(layout)
-
-    def _build_total_card(self) -> QFrame:
-        layout = QVBoxLayout()
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(10)
-
-        layout.addWidget(_section_label("🗄  총매출 엑셀 파일"))
-
-        self._total_path_row = FilePathRow()
-        self._total_path_row.browse_clicked.connect(self._browse_total)
-        layout.addWidget(self._total_path_row)
-
-        return _card(layout)
-
-    def _build_locker_card(self) -> QFrame:
-        layout = QVBoxLayout()
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(10)
-
-        layout.addWidget(_section_label("🔐  락카 관리"))
-
-        locker_btn = QPushButton("🔒  락카 현황 열기")
-        locker_btn.setFixedHeight(44)
-        locker_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #EEF2FF; color: #4338CA;
-                border: 1px solid #C7D2FE; border-radius: 6px;
-                font-size: 12px; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #E0E7FF; }}
+    def _make_stat_frame(self, label: str, is_total: bool = False) -> tuple[QFrame, QLabel]:
+        frame = QFrame()
+        frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        bg = "#EFF6FF" if is_total else "#F9FAFB"
+        frame.setObjectName("total-stat" if is_total else "stat")
+        frame.setStyleSheet(f"""
+            QFrame#{"total-stat" if is_total else "stat"} {{ background: {bg}; border-radius: 8px; }}
+            QLabel {{ background: transparent; border: none; }}
         """)
+
+        lay = QVBoxLayout()
+        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setSpacing(4)
+
+        lbl = QLabel(label)
+        lbl.setStyleSheet(
+            f"color: {'#3B82F6' if is_total else '#6B7280'}; font-size: 11px; font-weight: {'600' if is_total else '500'};"
+        )
+
+        val_lbl = QLabel("—")
+        val_lbl.setStyleSheet(
+            f"color: {'#1D4ED8' if is_total else '#111827'}; font-size: 20px; font-weight: 700;"
+        )
+
+        lay.addWidget(lbl)
+        lay.addWidget(val_lbl)
+        frame.setLayout(lay)
+        return frame, val_lbl
+
+    def _build_shortcuts(self) -> QWidget:
+        widget = QWidget()
+        widget.setStyleSheet("background: transparent;")
+
+        lay = QVBoxLayout()
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+
+        lbl = QLabel("바로가기")
+        lbl.setStyleSheet(
+            "color: #9CA3AF; font-size: 10px; font-weight: 600; background: transparent; border: none;"
+        )
+        lay.addWidget(lbl)
+
+        row1 = QHBoxLayout()
+        row1.setSpacing(10)
+        pay_btn = _BigBtn("💳", "매출 입력", "#3B82F6", "#2563EB")
+        pay_btn.clicked.connect(self._open_payment)
+        exp_btn = _BigBtn("🧾", "지출 입력", "#F59E0B", "#D97706")
+        exp_btn.clicked.connect(self._open_expense)
+        row1.addWidget(pay_btn)
+        row1.addWidget(exp_btn)
+        lay.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        row2.setSpacing(10)
+        hist_btn = _BigBtn("📋", "내역 조회", "#8B5CF6", "#7C3AED")
+        hist_btn.clicked.connect(self._open_entry_viewer)
+        locker_btn = _BigBtn("🔑", "락카 현황", "#10B981", "#059669")
         locker_btn.clicked.connect(self._open_locker_dialog)
-        layout.addWidget(locker_btn)
+        row2.addWidget(hist_btn)
+        row2.addWidget(locker_btn)
+        lay.addLayout(row2)
 
-        return _card(layout)
+        widget.setLayout(lay)
+        return widget
 
-    def _build_settings_btn(self) -> QPushButton:
-        btn = QPushButton("⚙  설정")
-        btn.setFixedHeight(36)
-        btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {_WHITE}; color: #6B7280;
-                border: 1px solid {_BORDER}; border-radius: 6px; font-size: 12px;
-            }}
-            QPushButton:hover {{ background-color: {_BG}; }}
-        """)
-        btn.clicked.connect(self._open_settings)
-        return btn
+    # ── 드래그 앤 드롭 (데일리 파일) ──────────────────────────────
 
-    # ── 경로 관리 ──────────────────────────────────────────────
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            if any(u.toLocalFile().endswith(".xlsx") for u in event.mimeData().urls()):
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        paths = [
+            u.toLocalFile()
+            for u in event.mimeData().urls()
+            if u.toLocalFile().endswith(".xlsx")
+        ]
+        if paths:
+            self._set_daily_path(paths[0])
+
+    # ── 경로 관리 ─────────────────────────────────────────────────
 
     def _set_daily_path(self, path: str) -> None:
         self._path_daily = path
         self._daily_path_row.set_path(path)
         self._save_paths()
         self._ensure_next_file_exists()
+        self._refresh_sales()
 
     def _set_total_path(self, path: str) -> None:
         self._path_total = path
@@ -501,7 +414,7 @@ class MainWindow(QMainWindow):
         if path:
             self._set_total_path(path)
 
-    # ── 자동 오늘 파일 설정 ────────────────────────────────────
+    # ── 자동 오늘 파일 설정 ───────────────────────────────────────
 
     def _auto_setup_today_file(self) -> None:
         saved = self._path_daily
@@ -520,7 +433,7 @@ class MainWindow(QMainWindow):
                 return
 
             old_str = f"{parsed.month}.{parsed.day}"
-            new_str  = f"{today.month}.{today.day}"
+            new_str = f"{today.month}.{today.day}"
             today_path = Path(saved).parent / Path(saved).name.replace(old_str, new_str, 1)
 
             if today_path.exists():
@@ -536,7 +449,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "자동 파일 생성 실패", str(exc))
 
     def _ensure_next_file_exists(self) -> None:
-        """오늘 파일이 등록된 상태에서 내일 날짜 파일을 미리 생성한다."""
         saved = self._path_daily
         if not saved or not Path(saved).exists():
             return
@@ -556,9 +468,25 @@ class MainWindow(QMainWindow):
             self._last_checked_date = today
             self._auto_setup_today_file()
 
-    # ── 기능 슬롯 ──────────────────────────────────────────────
+    # ── 매출 요약 ─────────────────────────────────────────────────
 
-    def _generate_report(self) -> None:
+    def _refresh_sales(self) -> None:
+        if not self._path_daily or not Path(self._path_daily).exists():
+            for lbl in (self._cash_lbl, self._card_lbl, self._transfer_lbl, self._total_lbl):
+                lbl.setText("—")
+            return
+        try:
+            sales = read_sales_values(self._path_daily)
+            fmt = lambda v: f"{int(v):,}원" if v is not None else "—"
+            self._cash_lbl.setText(fmt(sales["cash"]))
+            self._card_lbl.setText(fmt(sales["card"]))
+            self._transfer_lbl.setText(fmt(sales["transfer"]))
+            self._total_lbl.setText(fmt(sales["total"]))
+        except Exception:
+            for lbl in (self._cash_lbl, self._card_lbl, self._transfer_lbl, self._total_lbl):
+                lbl.setText("—")
+
+    def _copy_report(self) -> None:
         if not self._path_daily:
             QMessageBox.warning(self, "경고", "데일리 엑셀 파일을 선택해주세요.")
             return
@@ -569,54 +497,48 @@ class MainWindow(QMainWindow):
             except ValueError:
                 report_date = datetime.today()
             sales = read_sales_values(self._path_daily)
-            self._result_text.setPlainText(build_sales_report_text(report_date, sales))
+            text = build_sales_report_text(report_date, sales)
+            QApplication.clipboard().setText(text)
+            QMessageBox.information(self, "완료", "보고 문구를 클립보드에 복사했습니다.")
         except Exception as exc:
             QMessageBox.critical(self, "오류", str(exc))
 
-    def _copy_report(self) -> None:
-        text = self._result_text.toPlainText().strip()
-        if not text:
-            QMessageBox.warning(self, "경고", "복사할 문구가 없습니다.")
-            return
-        QApplication.clipboard().setText(text)
-        QMessageBox.information(self, "완료", "문구를 클립보드에 복사했습니다.")
+    # ── 날짜 불일치 차단 ──────────────────────────────────────────
 
     def _check_daily_date(self) -> bool:
-        """데일리 파일의 날짜가 오늘 날짜와 일치하는지 확인한다.
-        불일치하면 경고창을 표시하고 False를 반환한다."""
         if not self._path_daily:
-            return True  # 파일 미지정은 다이얼로그 내부에서 처리
+            return True
         try:
             parsed = extract_date_from_filename(Path(self._path_daily).name)
             today = date.today()
             if parsed.month != today.month or parsed.day != today.day:
-                file_date = f"{parsed.month}월 {parsed.day}일"
-                today_str = f"{today.month}월 {today.day}일"
                 QMessageBox.warning(
-                    self,
-                    "날짜 불일치",
-                    f"데일리 파일 날짜({file_date})와 오늘 날짜({today_str})가 다릅니다.\n\n"
+                    self, "날짜 불일치",
+                    f"데일리 파일 날짜({parsed.month}월 {parsed.day}일)와 "
+                    f"오늘 날짜({today.month}월 {today.day}일)가 다릅니다.\n\n"
                     "올바른 날짜의 데일리 파일을 선택한 후 다시 시도하세요.",
                 )
                 return False
         except ValueError:
-            pass  # 파일명에서 날짜를 읽을 수 없으면 통과
+            pass
         return True
+
+    # ── 기능 슬롯 ─────────────────────────────────────────────────
+
+    def _open_payment(self) -> None:
+        if not self._check_daily_date():
+            return
+        PaymentDialog(
+            daily_file=self._path_daily or None,
+            total_sales_file=self._path_total or None,
+            parent=self,
+        ).exec()
 
     def _open_expense(self) -> None:
         if not self._check_daily_date():
             return
         from src.ui.expense_dialog import ExpenseDialog
         ExpenseDialog(
-            daily_file=self._path_daily or None,
-            total_sales_file=self._path_total or None,
-            parent=self,
-        ).exec()
-
-    def _open_payment(self) -> None:
-        if not self._check_daily_date():
-            return
-        PaymentDialog(
             daily_file=self._path_daily or None,
             total_sales_file=self._path_total or None,
             parent=self,
@@ -637,7 +559,7 @@ class MainWindow(QMainWindow):
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()
 
-    # ── 설정 저장/불러오기 ─────────────────────────────────────
+    # ── 설정 저장/불러오기 ────────────────────────────────────────
 
     def _load_saved_paths(self) -> None:
         s = load_settings()

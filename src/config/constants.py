@@ -5,10 +5,10 @@ DEFAULT_CARD_CELL = "M6"
 DEFAULT_TRANSFER_CELL = "M7"
 DEFAULT_TOTAL_CELL = "M8"
 
-APP_VERSION = "2.2.3"
+APP_VERSION = "2.4.0"
 APP_NAME = f"리와인드 휘트니스 전산 자동화 프로그램 v{APP_VERSION}"
 WINDOW_WIDTH = 500
-WINDOW_HEIGHT = 760
+WINDOW_HEIGHT = 680
 
 # 매출 결제수단 — 지역화폐 추가 시 이 목록 한 곳만 수정
 PAYMENT_METHODS: list[str] = ["카드", "법인계좌", "일반계좌", "현금", "지역화폐"]
