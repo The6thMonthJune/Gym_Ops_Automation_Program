@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
@@ -60,6 +61,15 @@ class SettingsDialog(QDialog):
         save_button = QPushButton("저장")
         save_button.clicked.connect(self._save)
         layout.addWidget(save_button)
+
+        contact = QLabel(
+            "프로그램에 문제가 생기면 연락주세요.\n"
+            "제작자: 정준 실장\n"
+            "연락처: 010-9141-6322"
+        )
+        contact.setStyleSheet("color: #6B7280; font-size: 11px;")
+        contact.setAlignment(Qt.AlignCenter)
+        layout.addWidget(contact)
 
         self.setLayout(layout)
 
