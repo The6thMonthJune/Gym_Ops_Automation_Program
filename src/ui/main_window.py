@@ -24,6 +24,7 @@ from src.core.file_naming import extract_date_from_filename
 from src.services.daily_file_service import create_next_daily_file
 from src.services.sales_report_service import build_sales_report_text, read_sales_values
 from src.services.locker_service import count_by_state, build_member_report_text, load_records
+from src.services.lead_report_service import generate_report
 from src.ui.payment_dialog import PaymentDialog
 from src.ui.settings_dialog import SettingsDialog
 from src.config.constants import APP_NAME
@@ -379,6 +380,15 @@ class MainWindow(QMainWindow):
         row2.addWidget(locker_btn)
         lay.addLayout(row2)
 
+        report_btn = QPushButton("📊  유입경로 보고서 생성")
+        report_btn.setFixedHeight(36)
+        report_btn.setStyleSheet("""
+            QPushButton { background: #F3F4F6; color: #374151; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; }
+            QPushButton:hover { background: #E5E7EB; }
+        """)
+        report_btn.clicked.connect(self._generate_lead_report)
+        lay.addWidget(report_btn)
+
         widget.setLayout(lay)
         return widget
 
@@ -520,6 +530,23 @@ class MainWindow(QMainWindow):
             text = build_member_report_text(date.today(), counts)
             QApplication.clipboard().setText(text)
             QMessageBox.information(self, "완료", "회원 현황 보고 문구를 클립보드에 복사했습니다.")
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", str(exc))
+
+    def _generate_lead_report(self) -> None:
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "유입경로 보고서 저장",
+            f"유입경로_보고서_{date.today().strftime('%Y%m')}.xlsx",
+            "Excel 파일 (*.xlsx)",
+        )
+        if not save_path:
+            return
+        try:
+            out = generate_report(save_path)
+            QMessageBox.information(self, "완료", f"보고서가 저장되었습니다.\n{out}")
+        except ValueError as exc:
+            QMessageBox.warning(self, "데이터 없음", str(exc))
         except Exception as exc:
             QMessageBox.critical(self, "오류", str(exc))
 

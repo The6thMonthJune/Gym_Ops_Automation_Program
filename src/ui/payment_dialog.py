@@ -25,6 +25,7 @@ from src.services.entry_service import PaymentEntry, write_entry_to_daily, write
 from src.config.settings import get_password
 from src.config.constants import PAYMENT_METHODS, SALES_CATEGORIES, LESSON_ONLY_CATEGORIES
 from src.ui._kakao_send_widget import KakaoSendWidget
+from src.ui.lead_dialog import LeadDialog
 
 _MEMBERSHIP_TYPES = ["신규", "재등", "기존"]
 _PAYMENT_METHODS = PAYMENT_METHODS
@@ -316,6 +317,13 @@ class PaymentDialog(QDialog):
             QMessageBox.critical(self, "오류", "\n".join(errors))
         if results:
             QMessageBox.information(self, "완료", "\n".join(results))
+            if self.membership_type_combo.currentText() == "신규":
+                dlg = LeadDialog(
+                    member_name=self.name_input.text().strip(),
+                    contract_date=entry.entry_date,
+                    parent=self,
+                )
+                dlg.exec()
 
     def _get_kakao_message(self) -> str | None:
         text = self.output.toPlainText().strip()
