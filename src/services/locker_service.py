@@ -104,13 +104,14 @@ def save_records(records: list[LockerRecord]) -> None:
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
     data = [
         {
-            "member_name":   r.member_name,
-            "locker_room":   r.locker_room,
-            "locker_number": r.locker_number,
-            "has_key":       r.has_key,
-            "expiry_date":   r.expiry_date.isoformat() if r.expiry_date else None,
-            "start_date":    r.start_date.isoformat() if r.start_date else None,
-            "is_holding":    r.is_holding,
+            "member_name":    r.member_name,
+            "locker_room":    r.locker_room,
+            "locker_number":  r.locker_number,
+            "has_key":        r.has_key,
+            "expiry_date":    r.expiry_date.isoformat() if r.expiry_date else None,
+            "start_date":     r.start_date.isoformat() if r.start_date else None,
+            "is_holding":     r.is_holding,
+            "membership_type": r.membership_type,
         }
         for r in records
     ]
@@ -136,6 +137,7 @@ def load_records() -> list[LockerRecord]:
                 expiry_date=expiry,
                 start_date=start,
                 is_holding=item.get("is_holding", False),
+                membership_type=item.get("membership_type"),
             ))
         return records
     except Exception:
@@ -157,6 +159,34 @@ def count_by_state(records: list[LockerRecord]) -> dict[str, int]:
             if state in counts:
                 counts[state] += 1
     return counts
+
+
+def get_expired_by_category(
+    records: list[LockerRecord],
+) -> tuple[list[LockerRecord], list[LockerRecord]]:
+    """만료된 락카 회원을 두 그룹으로 분류해 반환한다.
+
+    Returns:
+        (locker_only, both_expired)
+        - locker_only  : 락카 만료 + 보유 회원권 있음 (회원권은 진행중)
+        - both_expired : 락카 만료 + 보유 회원권 없음 (둘 다 만료)
+    """
+    locker_only: list[LockerRecord] = []
+    both_expired: list[LockerRecord] = []
+
+    for rec in records:
+        if rec.locker_number <= 0:
+            continue
+        if _compute_state(rec) != "expired":
+            continue
+        if rec.membership_type:
+            locker_only.append(rec)
+        else:
+            both_expired.append(rec)
+
+    locker_only.sort(key=lambda r: r.expiry_date or date.min)
+    both_expired.sort(key=lambda r: r.expiry_date or date.min)
+    return locker_only, both_expired
 
 
 def build_member_report_text(report_date: date, counts: dict[str, int]) -> str:

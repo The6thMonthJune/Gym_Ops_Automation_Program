@@ -15,7 +15,8 @@ class LockerRecord:
     has_key: bool          # 보유 대여권 여부
     expiry_date: date | None
     start_date: date | None
-    is_holding: bool = False  # 브로제이 A열이 "홀딩"인 회원
+    is_holding: bool = False       # 브로제이 A열이 "홀딩"인 회원
+    membership_type: str | None = None  # 보유 회원권 문자열 (없으면 회원권 만료)
 
 
 # BROJ 구역명 → 내부 구역명
@@ -160,9 +161,10 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
 
         ci_name   = _find_col(headers, "이름", "회원명")
         ci_key    = _find_col(headers, "보유 대여권", "대여권", "락카권", "락커권")
-        ci_locker = _find_col(headers, "락커룸/락커번호", "락카룸/락카번호", "락커룸", "락카룸")
-        ci_expiry = _find_col(headers, "최종 만료일", "만료일", "종료일")
-        ci_start  = _find_col(headers, "최초 등록일", "시작일", "개시일", "계약일")
+        ci_locker      = _find_col(headers, "락커룸/락커번호", "락카룸/락카번호", "락커룸", "락카룸")
+        ci_expiry      = _find_col(headers, "최종 만료일", "만료일", "종료일")
+        ci_start       = _find_col(headers, "최초 등록일", "시작일", "개시일", "계약일")
+        ci_membership  = _find_col(headers, "보유 회원권", "회원권 종류", "현재 회원권")
 
         if ci_name is None:
             raise ValueError(f"'이름' 열을 찾을 수 없습니다.\n발견된 헤더: {headers[:20]}")
@@ -190,6 +192,13 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
             locker_val = _get_cell(row_vals, ci_locker)
             room, locker_num = _parse_locker_combined(locker_val)
 
+            membership_val = _get_cell(row_vals, ci_membership)
+            membership_type = (
+                str(membership_val).strip()
+                if membership_val and str(membership_val).strip() not in ("", "0", "None", "없음", "X", "x")
+                else None
+            )
+
             records.append(LockerRecord(
                 member_name=name,
                 locker_room=room,
@@ -198,6 +207,7 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
                 expiry_date=_parse_date(_get_cell(row_vals, ci_expiry)),
                 start_date=_parse_date(_get_cell(row_vals, ci_start)),
                 is_holding=is_holding,
+                membership_type=membership_type,
             ))
 
         book.close()

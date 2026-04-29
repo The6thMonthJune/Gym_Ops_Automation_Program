@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.services.broj_service import LockerRecord, parse_xls
+from src.ui.expired_dialog import ExpiredLockerDialog
 from src.services.locker_service import (
     SECTIONS,
     LockerCell,
@@ -362,6 +363,18 @@ class LockerDialog(QDialog):
         lay.setSpacing(8)
 
         lay.addStretch()
+
+        expired_btn = QPushButton("📋  만료자 명단")
+        expired_btn.setFixedSize(120, 38)
+        expired_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: #FEE2E2; color: #991B1B;
+                border: 1px solid #FECACA; border-radius: 6px; font-size: 12px; font-weight: bold;
+            }}
+            QPushButton:hover {{ background: #FECACA; }}
+        """)
+        expired_btn.clicked.connect(lambda: ExpiredLockerDialog(self).exec())
+        lay.addWidget(expired_btn)
 
         refresh_btn = QPushButton("↺  새로고침")
         refresh_btn.setFixedSize(100, 38)
