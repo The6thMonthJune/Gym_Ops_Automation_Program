@@ -85,10 +85,35 @@ def merge_records(
     """기존 레코드에 새 레코드를 병합한다.
     전화번호를 primary key로 사용하여 동명이인을 정확히 구분한다.
     분할 가져오기(예: 1000명 + 174명)에서도 모든 회원이 누적된다.
+    전화번호 없는 기존 레코드는 새 레코드(전화번호 있음)로 교체된다.
     """
     merged: dict[str, LockerRecord] = {_record_key(r): r for r in existing}
+
+    # 전화번호 없는 기존 레코드의 보조 인덱스 (구버전 데이터 마이그레이션용)
+    phoneless_locker: dict[int, str] = {
+        r.locker_number: _record_key(r)
+        for r in existing
+        if not r.phone_number and r.locker_number > 0
+    }
+    phoneless_name: dict[str, str] = {
+        r.member_name: _record_key(r)
+        for r in existing
+        if not r.phone_number and r.locker_number <= 0
+    }
+
     for r in new:
-        merged[_record_key(r)] = r
+        key = _record_key(r)
+        if r.phone_number:
+            # 같은 락카 또는 같은 이름의 전화번호 없는 구버전 레코드 제거
+            old_key = (
+                phoneless_locker.get(r.locker_number)
+                if r.locker_number > 0
+                else phoneless_name.get(r.member_name)
+            )
+            if old_key and old_key != key:
+                merged.pop(old_key, None)
+        merged[key] = r
+
     return list(merged.values())
 
 
