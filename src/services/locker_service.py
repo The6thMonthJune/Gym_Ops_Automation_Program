@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dc_replace
 from datetime import date
 from pathlib import Path
 
@@ -36,6 +36,9 @@ def _compute_state(record: LockerRecord) -> str:
     today = date.today()
     if record.start_date and record.start_date > today:
         return "scheduled"
+    # 락카 배정은 있으나 대여권 없음 = 만료(보유 대여권 소멸)
+    if record.locker_number > 0 and not record.has_key:
+        return "expired"
     expiry = record.locker_expiry or record.expiry_date  # 락카 만료일 우선
     if expiry:
         delta = (expiry - today).days
@@ -132,6 +135,19 @@ def merge_records(
             )
             if old_key and old_key != key:
                 merged.pop(old_key, None)
+
+        # 락카 만료 보존: 기존에 락카가 있었는데 새 데이터에서 사라진 경우
+        # 브로제이 락카 관리 페이지처럼 회수 전까지 만료 상태로 유지
+        existing_rec = merged.get(key)
+        if (existing_rec
+                and existing_rec.locker_number > 0
+                and r.locker_number <= 0):
+            r = dc_replace(r,
+                locker_number=existing_rec.locker_number,
+                locker_room=existing_rec.locker_room,
+                locker_expiry=existing_rec.locker_expiry,
+            )
+
         merged[key] = r
 
     return list(merged.values())
