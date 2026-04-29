@@ -159,7 +159,7 @@ class LockerDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("락카 관리")
-        self.setMinimumWidth(1300)
+        self.setMinimumSize(1400, 800)
         self.setStyleSheet(f"""
             QDialog {{ background: {_BG}; font-family: "Malgun Gothic", sans-serif; }}
             QPushButton {{ outline: none; }}
