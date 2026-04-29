@@ -8,7 +8,7 @@ from PySide6.QtGui import QPageLayout, QPageSize, QTextDocument
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
     QDialog,
-    QFileDialog,
+
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.services.broj_service import LockerRecord, parse_xls
+from src.services.broj_service import LockerRecord
 from src.ui.expired_dialog import ExpiredLockerDialog
 from src.services.locker_service import (
     SECTIONS,
@@ -30,12 +30,9 @@ from src.services.locker_service import (
     get_locker_json_path,
     get_unassigned,
     load_records,
-    merge_records,
-    save_records,
-)
-from src.config.settings import load_settings, save_settings
 
-_KEY_LAST_XLS_DIR = "last_xls_dir"
+)
+
 
 _NAVY   = "#1E2D3D"
 _BLUE   = "#4A6FA5"
@@ -167,7 +164,6 @@ class LockerDialog(QDialog):
         """)
 
         self._records: list[LockerRecord] = []
-        self._xls_path: str = ""
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -197,7 +193,6 @@ class LockerDialog(QDialog):
         body_lay.setContentsMargins(16, 16, 16, 16)
         body_lay.setSpacing(12)
 
-        body_lay.addWidget(self._build_import_card())
         body_lay.addWidget(self._build_legend())
 
         # 그리드 컨테이너
@@ -221,63 +216,6 @@ class LockerDialog(QDialog):
         self._refresh_grid()
 
     # ── 카드 빌더 ─────────────────────────────────────────────────
-
-    def _build_import_card(self) -> QFrame:
-        card = QFrame()
-        card.setStyleSheet(f"""
-            QFrame {{
-                background: {_WHITE};
-                border: 1px solid #E5E7EB;
-                border-radius: 8px;
-            }}
-        """)
-        lay = QVBoxLayout(card)
-        lay.setContentsMargins(16, 12, 16, 12)
-        lay.setSpacing(8)
-
-        lbl = QLabel("브로제이 엑셀 데이터 가져오기")
-        lbl.setStyleSheet(
-            "color: #374151; font-size: 11px; font-weight: bold; background: transparent; border: none;"
-        )
-        lay.addWidget(lbl)
-
-        row = QHBoxLayout()
-        row.setSpacing(8)
-
-        self._xls_label = QLabel("가져올 .xls 파일을 선택하세요")
-        self._xls_label.setStyleSheet(f"""
-            color: #9CA3AF; font-size: 11px;
-            background: {_BG}; border: 1px solid {_BORDER};
-            border-radius: 4px; padding: 6px 10px;
-        """)
-        row.addWidget(self._xls_label, 1)
-
-        browse_btn = QPushButton("파일 선택")
-        browse_btn.setFixedSize(80, 32)
-        browse_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {_BLUE}; color: white; border: none;
-                border-radius: 4px; font-size: 11px; font-weight: bold;
-            }}
-            QPushButton:hover {{ background: #3B5998; }}
-        """)
-        browse_btn.clicked.connect(self._browse_xls)
-        row.addWidget(browse_btn)
-
-        self._import_btn = QPushButton("가져오기")
-        self._import_btn.setFixedSize(80, 32)
-        self._import_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {_NAVY}; color: white; border: none;
-                border-radius: 4px; font-size: 11px; font-weight: bold;
-            }}
-            QPushButton:hover {{ background: #2A3F56; }}
-        """)
-        self._import_btn.clicked.connect(self._import_xls)
-        row.addWidget(self._import_btn)
-
-        lay.addLayout(row)
-        return card
 
     def _build_legend(self) -> QWidget:
         widget = QWidget()
@@ -405,52 +343,6 @@ class LockerDialog(QDialog):
         return bar
 
     # ── 슬롯 ──────────────────────────────────────────────────────
-
-    def _browse_xls(self) -> None:
-        s = load_settings()
-        start_dir = s.get(_KEY_LAST_XLS_DIR, "")
-        path, _ = QFileDialog.getOpenFileName(
-            self, "브로제이 엑셀 파일 선택", start_dir, "Excel Files (*.xls *.xlsx)"
-        )
-        if not path:
-            return
-        self._xls_path = path
-        self._xls_label.setText(Path(path).name)
-        self._xls_label.setStyleSheet(f"""
-            color: {_NAVY}; font-size: 11px;
-            background: #F0F5FF; border: 1px solid {_BLUE};
-            border-radius: 4px; padding: 6px 10px;
-        """)
-        s[_KEY_LAST_XLS_DIR] = str(Path(path).parent)
-        save_settings(s)
-
-    def _import_xls(self) -> None:
-        if not self._xls_path:
-            QMessageBox.warning(self, "경고", "파일을 먼저 선택해주세요.")
-            return
-        if not Path(self._xls_path).exists():
-            QMessageBox.warning(self, "오류", "선택한 파일이 존재하지 않습니다.")
-            return
-
-        self._import_btn.setEnabled(False)
-        self._import_btn.setText("처리 중...")
-        try:
-            records = parse_xls(self._xls_path, delete_after=True)
-            merged = merge_records(load_records(), records)
-            save_records(merged)
-            self._xls_path = ""
-            self._xls_label.setText(f"가져오기 완료 — {len(records)}명")
-            self._xls_label.setStyleSheet(f"""
-                color: #166534; font-size: 11px;
-                background: #DCFCE7; border: 1px solid #BBF7D0;
-                border-radius: 4px; padding: 6px 10px;
-            """)
-            self._refresh_grid()
-        except Exception as e:
-            QMessageBox.critical(self, "오류", f"파일 파싱 실패:\n{e}")
-        finally:
-            self._import_btn.setEnabled(True)
-            self._import_btn.setText("가져오기")
 
     def _refresh_grid(self) -> None:
         self._records = load_records()

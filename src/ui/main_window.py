@@ -23,7 +23,9 @@ from PySide6.QtWidgets import (
 from src.core.file_naming import extract_date_from_filename
 from src.services.daily_file_service import create_next_daily_file
 from src.services.sales_report_service import build_sales_report_text, read_sales_values
-from src.services.locker_service import count_by_state, build_member_report_text, load_records
+from src.services.locker_service import count_by_state, build_member_report_text, load_records, merge_records, save_records
+from src.services.broj_service import parse_xls
+from src.services.snapshot_service import save_snapshot
 from src.services.lead_report_service import generate_report
 from src.ui.payment_dialog import PaymentDialog
 from src.ui.settings_dialog import SettingsDialog
@@ -380,12 +382,19 @@ class MainWindow(QMainWindow):
         row2.addWidget(locker_btn)
         lay.addLayout(row2)
 
-        report_btn = QPushButton("📊  유입경로 보고서 생성")
-        report_btn.setFixedHeight(36)
-        report_btn.setStyleSheet("""
+        _slim_style = """
             QPushButton { background: #F3F4F6; color: #374151; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; }
             QPushButton:hover { background: #E5E7EB; }
-        """)
+        """
+        db_btn = QPushButton("🔄  회원 DB 업데이트")
+        db_btn.setFixedHeight(36)
+        db_btn.setStyleSheet(_slim_style)
+        db_btn.clicked.connect(self._update_member_db)
+        lay.addWidget(db_btn)
+
+        report_btn = QPushButton("📊  유입경로 보고서 생성")
+        report_btn.setFixedHeight(36)
+        report_btn.setStyleSheet(_slim_style)
         report_btn.clicked.connect(self._generate_lead_report)
         lay.addWidget(report_btn)
 
@@ -532,6 +541,29 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "완료", "회원 현황 보고 문구를 클립보드에 복사했습니다.")
         except Exception as exc:
             QMessageBox.critical(self, "오류", str(exc))
+
+    def _update_member_db(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "브로제이 엑셀 파일 선택", "", "Excel Files (*.xls *.xlsx)"
+        )
+        if not path:
+            return
+        try:
+            records = parse_xls(path, delete_after=False)
+            merged = merge_records(load_records(), records)
+            save_records(merged)
+            counts = count_by_state(merged)
+            save_snapshot(date.today(), counts)
+            total = sum(counts.values())
+            QMessageBox.information(
+                self, "완료",
+                f"회원 DB 업데이트 완료\n"
+                f"가져온 인원: {len(records)}명 | 전체 DB: {total}명\n\n"
+                f"활성 {counts['active']} · 만료 {counts['expired']} · "
+                f"임박 {counts['imminent']} · 홀딩 {counts['holding']} · 미등록 {counts['unassigned']}",
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "오류", f"파일 파싱 실패:\n{exc}")
 
     def _generate_lead_report(self) -> None:
         save_path, _ = QFileDialog.getSaveFileName(

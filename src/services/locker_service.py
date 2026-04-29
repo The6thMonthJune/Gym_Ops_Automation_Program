@@ -34,7 +34,7 @@ def _compute_state(record: LockerRecord) -> str:
     if record.is_holding:
         return "holding"
     today = date.today()
-    if record.start_date and record.start_date > today:
+    if record.is_locker_scheduled or (record.start_date and record.start_date > today):
         return "scheduled"
     # 락카 배정은 있으나 대여권 없음 = 만료(보유 대여권 소멸)
     if record.locker_number > 0 and not record.has_key:
@@ -167,8 +167,9 @@ def save_records(records: list[LockerRecord]) -> None:
             "start_date":     r.start_date.isoformat() if r.start_date else None,
             "is_holding":     r.is_holding,
             "membership_type": r.membership_type,
-            "phone_number":   r.phone_number,
-            "locker_expiry":  r.locker_expiry.isoformat() if r.locker_expiry else None,
+            "phone_number":        r.phone_number,
+            "locker_expiry":       r.locker_expiry.isoformat() if r.locker_expiry else None,
+            "is_locker_scheduled": r.is_locker_scheduled,
         }
         for r in records
     ]
@@ -197,6 +198,7 @@ def load_records() -> list[LockerRecord]:
                 membership_type=item.get("membership_type"),
                 phone_number=item.get("phone_number"),
                 locker_expiry=date.fromisoformat(item["locker_expiry"]) if item.get("locker_expiry") else None,
+                is_locker_scheduled=item.get("is_locker_scheduled", False),
             ))
         return records
     except Exception:
@@ -211,7 +213,7 @@ def count_by_state(records: list[LockerRecord]) -> dict[str, int]:
     """상태별 회원 수를 반환한다."""
     counts = {"active": 0, "expired": 0, "scheduled": 0, "imminent": 0, "holding": 0, "unassigned": 0}
     for rec in records:
-        if rec.locker_number <= 0 and rec.has_key:
+        if rec.is_locker_scheduled or (rec.locker_number <= 0 and rec.has_key):
             counts["unassigned"] += 1
         else:
             state = _compute_membership_state(rec)  # 회원권 만료일 + 9일 임박 기준

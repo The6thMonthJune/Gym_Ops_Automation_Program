@@ -16,10 +16,11 @@ class LockerRecord:
     has_key: bool          # 보유 대여권 여부
     expiry_date: date | None
     start_date: date | None
-    is_holding: bool = False       # 브로제이 A열이 "홀딩"인 회원
-    membership_type: str | None = None  # 보유 회원권 문자열 (없으면 회원권 만료)
-    phone_number: str | None = None    # 숫자만 추출한 전화번호 (동명이인 구분용)
-    locker_expiry: date | None = None  # 락카 만료일 (보유 대여권에서 파싱)
+    is_holding: bool = False          # 브로제이 A열이 "홀딩"인 회원
+    membership_type: str | None = None   # 보유 회원권 문자열 (없으면 회원권 만료)
+    phone_number: str | None = None      # 숫자만 추출한 전화번호 (동명이인 구분용)
+    locker_expiry: date | None = None    # 락카 만료일 (보유 대여권에서 파싱)
+    is_locker_scheduled: bool = False    # 보유 대여권이 (예정) 상태 → 미등록으로 분류
 
 
 # BROJ 구역명 → 내부 구역명
@@ -234,6 +235,7 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
                 membership_type=membership_type,
                 phone_number=_normalize_phone(_get_cell(row_vals, ci_phone)),
                 locker_expiry=_parse_locker_key_expiry(_get_cell(row_vals, ci_key)),
+                is_locker_scheduled=has_key and "(예정)" in str(_get_cell(row_vals, ci_key) or ""),
             ))
 
         book.close()
