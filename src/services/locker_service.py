@@ -67,36 +67,28 @@ def get_unassigned(records: list[LockerRecord]) -> list[LockerRecord]:
     return [r for r in records if r.locker_number <= 0 and r.has_key]
 
 
+def _record_key(r: LockerRecord) -> str:
+    """회원 레코드의 고유 키를 반환한다.
+    전화번호 > 락카번호 > 이름 순으로 우선 사용.
+    """
+    if r.phone_number:
+        return f"phone:{r.phone_number}"
+    if r.locker_number > 0:
+        return f"locker:{r.locker_number}"
+    return f"name:{r.member_name}"
+
+
 def merge_records(
     existing: list[LockerRecord],
     new: list[LockerRecord],
 ) -> list[LockerRecord]:
     """기존 레코드에 새 레코드를 병합한다.
-    락커번호(>0)가 같으면 새 데이터로 덮어쓰고, 기존에 없는 락커는 추가한다.
-    락커번호=0인 회원은 새 데이터로 전체 교체한다 (이름 충돌 방지를 위해 인덱스 키 사용).
-    회원이 다른 락커로 이동한 경우 기존 락커 항목을 제거한다.
+    전화번호를 primary key로 사용하여 동명이인을 정확히 구분한다.
+    분할 가져오기(예: 1000명 + 174명)에서도 모든 회원이 누적된다.
     """
-    # 새 데이터에서 이름 → 새 락커번호 매핑 (락커 이동 감지용)
-    new_name_to_locker: dict[str, int] = {
-        r.member_name: r.locker_number
-        for r in new
-        if r.locker_number > 0
-    }
-
-    # 기존 레코드 유지 (락카 이동 감지 포함)
-    merged: dict[str, LockerRecord] = {}
-    for r in existing:
-        key = str(r.locker_number) if r.locker_number > 0 else f"name:{r.member_name}"
-        new_locker = new_name_to_locker.get(r.member_name)
-        if r.locker_number > 0 and new_locker is not None and new_locker != r.locker_number:
-            continue  # 다른 락카로 이동
-        merged[key] = r
-
-    # 새 데이터로 덮어쓰기 (분할 가져오기 시 누적 유지)
+    merged: dict[str, LockerRecord] = {_record_key(r): r for r in existing}
     for r in new:
-        key = str(r.locker_number) if r.locker_number > 0 else f"name:{r.member_name}"
-        merged[key] = r
-
+        merged[_record_key(r)] = r
     return list(merged.values())
 
 
@@ -112,6 +104,7 @@ def save_records(records: list[LockerRecord]) -> None:
             "start_date":     r.start_date.isoformat() if r.start_date else None,
             "is_holding":     r.is_holding,
             "membership_type": r.membership_type,
+            "phone_number":   r.phone_number,
         }
         for r in records
     ]
@@ -138,6 +131,7 @@ def load_records() -> list[LockerRecord]:
                 start_date=start,
                 is_holding=item.get("is_holding", False),
                 membership_type=item.get("membership_type"),
+                phone_number=item.get("phone_number"),
             ))
         return records
     except Exception:

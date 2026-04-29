@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -17,6 +18,7 @@ class LockerRecord:
     start_date: date | None
     is_holding: bool = False       # 브로제이 A열이 "홀딩"인 회원
     membership_type: str | None = None  # 보유 회원권 문자열 (없으면 회원권 만료)
+    phone_number: str | None = None    # 숫자만 추출한 전화번호 (동명이인 구분용)
 
 
 # BROJ 구역명 → 내부 구역명
@@ -40,6 +42,14 @@ SECTION_OFFSET: dict[str, int] = {
     "회원복 락카":      84,   # 85~119
     "메인 락카":   119,  # 120~252
 }
+
+
+def _normalize_phone(val) -> str | None:
+    """전화번호에서 숫자만 추출한다. 없으면 None."""
+    if not val:
+        return None
+    digits = re.sub(r"\D", "", str(val).strip())
+    return digits if digits else None
 
 
 def _normalize_room(raw: str) -> str:
@@ -165,6 +175,7 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
         ci_expiry      = _find_col(headers, "최종 만료일", "만료일", "종료일")
         ci_start       = _find_col(headers, "최초 등록일", "시작일", "개시일", "계약일")
         ci_membership  = _find_col(headers, "보유 이용권", "이용권", "보유 회원권")
+        ci_phone       = _find_col(headers, "연락처", "휴대폰번호", "핸드폰번호", "전화번호", "휴대폰", "핸드폰", "전화")
 
         if ci_name is None:
             raise ValueError(f"'이름' 열을 찾을 수 없습니다.\n발견된 헤더: {headers[:20]}")
@@ -208,6 +219,7 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
                 start_date=_parse_date(_get_cell(row_vals, ci_start)),
                 is_holding=is_holding,
                 membership_type=membership_type,
+                phone_number=_normalize_phone(_get_cell(row_vals, ci_phone)),
             ))
 
         book.close()
