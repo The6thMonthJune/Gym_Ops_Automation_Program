@@ -164,7 +164,7 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
         ci_locker      = _find_col(headers, "락커룸/락커번호", "락카룸/락카번호", "락커룸", "락카룸")
         ci_expiry      = _find_col(headers, "최종 만료일", "만료일", "종료일")
         ci_start       = _find_col(headers, "최초 등록일", "시작일", "개시일", "계약일")
-        ci_membership  = _find_col(headers, "보유 회원권", "회원권 종류", "현재 회원권")
+        ci_membership  = _find_col(headers, "보유 이용권", "이용권", "보유 회원권")
 
         if ci_name is None:
             raise ValueError(f"'이름' 열을 찾을 수 없습니다.\n발견된 헤더: {headers[:20]}")

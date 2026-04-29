@@ -179,7 +179,9 @@ def get_expired_by_category(
             continue
         if _compute_state(rec) != "expired":
             continue
-        if rec.membership_type:
+        # "(활성)" 문자열이 있어야 실제 활성 이용권으로 판단
+        has_active = bool(rec.membership_type and "(활성)" in rec.membership_type)
+        if has_active:
             locker_only.append(rec)
         else:
             both_expired.append(rec)
