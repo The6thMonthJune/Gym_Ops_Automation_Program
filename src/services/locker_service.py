@@ -11,7 +11,8 @@ from src.services.broj_service import LockerRecord
 _DATA_DIR  = Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드자동화"
 _LOCKER_JSON = _DATA_DIR / "locker_data.json"
 
-IMMINENT_DAYS = 30  # 만료 임박 기준 (일)
+IMMINENT_DAYS = 30            # 락카 그리드 임박 기준 (일)
+MEMBERSHIP_IMMINENT_DAYS = 9  # 회원현황보고 임박 기준 (브로제이 기준, 일)
 
 SECTIONS: list[dict] = [
     {"name": "남자 탈의실", "start": 1,   "end": 84,  "cols": 12, "rows": 7},
@@ -29,17 +30,35 @@ class LockerCell:
 
 
 def _compute_state(record: LockerRecord) -> str:
+    """락카 그리드용: 락카 만료일(보유 대여권) 기준으로 상태를 계산한다."""
     if record.is_holding:
         return "holding"
     today = date.today()
-    # 예정: 시작일이 오늘 이후
     if record.start_date and record.start_date > today:
         return "scheduled"
-    if record.expiry_date:
-        delta = (record.expiry_date - today).days
+    expiry = record.locker_expiry or record.expiry_date  # 락카 만료일 우선
+    if expiry:
+        delta = (expiry - today).days
         if delta < 0:
             return "expired"
         if delta <= IMMINENT_DAYS:
+            return "imminent"
+        return "active"
+    return "active" if record.has_key else "expired"
+
+
+def _compute_membership_state(record: LockerRecord) -> str:
+    """회원현황보고용: 회원권 만료일(최종 만료일) 기준으로 상태를 계산한다."""
+    if record.is_holding:
+        return "holding"
+    today = date.today()
+    if record.start_date and record.start_date > today:
+        return "scheduled"
+    if record.expiry_date:  # 최종 만료일 = 회원권 만료일
+        delta = (record.expiry_date - today).days
+        if delta < 0:
+            return "expired"
+        if delta <= MEMBERSHIP_IMMINENT_DAYS:
             return "imminent"
         return "active"
     return "active" if record.has_key else "expired"
@@ -52,7 +71,8 @@ def build_grid(records: list[LockerRecord]) -> dict[int, LockerCell]:
         if rec.locker_number <= 0:
             continue
         state = _compute_state(rec)
-        days = (rec.expiry_date - date.today()).days if rec.expiry_date else None
+        expiry = rec.locker_expiry or rec.expiry_date
+        days = (expiry - date.today()).days if expiry else None
         grid[rec.locker_number] = LockerCell(
             number=rec.locker_number,
             state=state,
@@ -130,6 +150,7 @@ def save_records(records: list[LockerRecord]) -> None:
             "is_holding":     r.is_holding,
             "membership_type": r.membership_type,
             "phone_number":   r.phone_number,
+            "locker_expiry":  r.locker_expiry.isoformat() if r.locker_expiry else None,
         }
         for r in records
     ]
@@ -157,6 +178,7 @@ def load_records() -> list[LockerRecord]:
                 is_holding=item.get("is_holding", False),
                 membership_type=item.get("membership_type"),
                 phone_number=item.get("phone_number"),
+                locker_expiry=date.fromisoformat(item["locker_expiry"]) if item.get("locker_expiry") else None,
             ))
         return records
     except Exception:
@@ -174,7 +196,7 @@ def count_by_state(records: list[LockerRecord]) -> dict[str, int]:
         if rec.locker_number <= 0 and rec.has_key:
             counts["unassigned"] += 1
         else:
-            state = _compute_state(rec)
+            state = _compute_membership_state(rec)  # 회원권 만료일 + 9일 임박 기준
             if state in counts:
                 counts[state] += 1
     return counts

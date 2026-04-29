@@ -19,6 +19,7 @@ class LockerRecord:
     is_holding: bool = False       # 브로제이 A열이 "홀딩"인 회원
     membership_type: str | None = None  # 보유 회원권 문자열 (없으면 회원권 만료)
     phone_number: str | None = None    # 숫자만 추출한 전화번호 (동명이인 구분용)
+    locker_expiry: date | None = None  # 락카 만료일 (보유 대여권에서 파싱)
 
 
 # BROJ 구역명 → 내부 구역명
@@ -42,6 +43,18 @@ SECTION_OFFSET: dict[str, int] = {
     "회원복 락카":      84,   # 85~119
     "메인 락카":   119,  # 120~252
 }
+
+
+def _parse_locker_key_expiry(val) -> date | None:
+    """보유 대여권 문자열에서 락카 만료일을 추출한다.
+    예: '락커 대여권(활성) 2026.04.28~2027.04.27' → date(2027, 4, 27)
+    """
+    if not val:
+        return None
+    m = re.search(r"~(\d{4}[.\-/]\d{2}[.\-/]\d{2})", str(val))
+    if m:
+        return _parse_date(m.group(1))
+    return None
 
 
 def _normalize_phone(val) -> str | None:
@@ -220,6 +233,7 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
                 is_holding=is_holding,
                 membership_type=membership_type,
                 phone_number=_normalize_phone(_get_cell(row_vals, ci_phone)),
+                locker_expiry=_parse_locker_key_expiry(_get_cell(row_vals, ci_key)),
             ))
 
         book.close()
