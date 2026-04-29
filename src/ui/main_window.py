@@ -549,7 +549,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            records = parse_xls(path, delete_after=False)
+            records = parse_xls(path, delete_after=True)
             merged = merge_records(load_records(), records)
             save_records(merged)
             counts = count_by_state(merged)
