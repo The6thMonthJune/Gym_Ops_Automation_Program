@@ -32,6 +32,17 @@ def _membership_label(rec: LockerRecord) -> str:
     return rec.membership_type if rec.membership_type else "-"
 
 
+def _format_phone(phone: str | None) -> str:
+    if not phone:
+        return "-"
+    d = phone
+    if len(d) == 11:
+        return f"{d[:3]}-{d[3:7]}-{d[7:]}"
+    if len(d) == 10:
+        return f"{d[:3]}-{d[3:6]}-{d[6:]}"
+    return d
+
+
 class _MemberRow(QWidget):
     def __init__(self, rec: LockerRecord, shade: bool = False, parent=None):
         super().__init__(parent)
@@ -52,11 +63,9 @@ class _MemberRow(QWidget):
         lay.addWidget(_cell(rec.member_name, 100))
         lay.addWidget(_cell(f"{rec.locker_number}번", 60, Qt.AlignCenter))
         lay.addWidget(_cell(rec.locker_room or "-", 100))
-        lay.addWidget(_cell(
-            rec.expiry_date.strftime("%Y-%m-%d") if rec.expiry_date else "-", 110
-        ))
         lay.addWidget(_cell(_days_since(rec.expiry_date), 100))
         lay.addWidget(_cell(_membership_label(rec), 140))
+        lay.addWidget(_cell(_format_phone(rec.phone_number), 130))
 
 
 class _SectionWidget(QWidget):
@@ -105,7 +114,7 @@ class _SectionWidget(QWidget):
         ch_lay.setSpacing(0)
         for text, width in [
             ("이름", 100), ("락카번호", 60), ("구역", 100),
-            ("만료일", 110), ("경과", 100), ("보유 회원권", 140),
+            ("경과", 100), ("보유 회원권", 140), ("휴대폰", 130),
         ]:
             lbl = QLabel(text)
             lbl.setFixedWidth(width)
@@ -123,12 +132,12 @@ class _SectionWidget(QWidget):
     def _copy(self, records: list[LockerRecord]) -> None:
         if not records:
             return
-        lines = ["이름\t락카번호\t구역\t만료일\t보유회원권"]
+        lines = ["이름\t락카번호\t구역\t경과\t보유회원권\t휴대폰"]
         for r in records:
             lines.append(
                 f"{r.member_name}\t{r.locker_number}번\t{r.locker_room or '-'}\t"
-                f"{r.expiry_date.strftime('%Y-%m-%d') if r.expiry_date else '-'}\t"
-                f"{_membership_label(r)}"
+                f"{_days_since(r.expiry_date)}\t"
+                f"{_membership_label(r)}\t{_format_phone(r.phone_number)}"
             )
         QApplication.clipboard().setText("\n".join(lines))
         QMessageBox.information(self.window(), "완료", "클립보드에 복사되었습니다.")
@@ -140,7 +149,7 @@ class ExpiredLockerDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("락카 만료자 명단")
-        self.setMinimumSize(680, 600)
+        self.setMinimumSize(720, 600)
         self._setup_ui()
 
     def _setup_ui(self) -> None:
