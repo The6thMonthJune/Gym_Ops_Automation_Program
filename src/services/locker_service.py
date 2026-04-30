@@ -215,6 +215,11 @@ def count_by_state(records: list[LockerRecord]) -> dict[str, int]:
     for rec in records:
         if rec.is_locker_scheduled or (rec.locker_number <= 0 and rec.has_key):
             counts["unassigned"] += 1
+        elif (not rec.has_key and rec.locker_number <= 0
+              and not rec.expiry_date and not rec.membership_type
+              and not rec.is_holding):
+            # 계약이력이 전혀 없는 회원 = 브로제이 기준 미등록
+            counts["unassigned"] += 1
         else:
             state = _compute_membership_state(rec)  # 회원권 만료일 + 9일 임박 기준
             if state in counts:

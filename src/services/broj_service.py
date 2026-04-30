@@ -206,11 +206,14 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
             # A열(index 0)이 "홀딩"이면 홀딩 회원
             is_holding = str(row_vals[0] or "").strip() == "홀딩"
 
-            # 보유 대여권 여부
+            # 보유 대여권 여부 — 락커 대여권만 has_key=True (운동복 대여권 제외)
             key_val = _get_cell(row_vals, ci_key)
+            key_str = str(key_val).strip() if key_val else ""
+            is_locker_key = "락커 대여권" in key_str or "락카 대여권" in key_str
             has_key = (
                 bool(key_val)
-                and str(key_val).strip() not in ("", "0", "None", "없음", "X", "x")
+                and key_str not in ("", "0", "None", "없음", "X", "x")
+                and is_locker_key
             )
 
             # 락커룸/락커번호 통합 컬럼 파싱
@@ -234,8 +237,8 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
                 is_holding=is_holding,
                 membership_type=membership_type,
                 phone_number=_normalize_phone(_get_cell(row_vals, ci_phone)),
-                locker_expiry=_parse_locker_key_expiry(_get_cell(row_vals, ci_key)),
-                is_locker_scheduled=has_key and "(예정)" in str(_get_cell(row_vals, ci_key) or ""),
+                locker_expiry=_parse_locker_key_expiry(_get_cell(row_vals, ci_key)) if is_locker_key else None,
+                is_locker_scheduled=has_key and "(예정)" in key_str,
             ))
 
         book.close()
