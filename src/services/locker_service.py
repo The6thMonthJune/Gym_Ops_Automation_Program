@@ -257,14 +257,16 @@ def get_expired_by_category(
 
 
 def build_member_report_text(report_date: date, counts: dict[str, int]) -> str:
-    """대표 보고용 유효회원 현황 문구를 반환한다."""
+    """대표 보고용 유효회원 현황 문구를 반환한다.
+    활성에 임박(9일 이내 만료 예정)을 합산해 표시한다.
+    """
+    active_total = counts.get("active", 0) + counts.get("imminent", 0)
     total = sum(counts.values())
     return (
         f"[{report_date.month}월 {report_date.day}일 리와인드 중산점 유효회원]\n"
-        f"활성: {counts.get('active', 0)}명\n"
+        f"활성: {active_total}명\n"
         f"만료: {counts.get('expired', 0)}명\n"
         f"예정: {counts.get('scheduled', 0)}명\n"
-        f"임박: {counts.get('imminent', 0)}명\n"
         f"홀딩: {counts.get('holding', 0)}명\n"
         f"미등록: {counts.get('unassigned', 0)}명\n\n"
         f"총: {total}명"

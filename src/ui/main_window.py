@@ -23,7 +23,8 @@ from PySide6.QtWidgets import (
 from src.core.file_naming import extract_date_from_filename
 from src.services.daily_file_service import create_next_daily_file
 from src.services.sales_report_service import build_sales_report_text, read_sales_values
-from src.services.locker_service import count_by_state, build_member_report_text, load_records, merge_records, save_records
+from src.services.locker_service import count_by_state, load_records, merge_records, save_records
+from src.ui.trend_dialog import TrendDialog
 from src.services.broj_service import parse_xls
 from src.services.snapshot_service import save_snapshot
 from src.services.lead_report_service import generate_report
@@ -536,9 +537,8 @@ class MainWindow(QMainWindow):
         try:
             records = load_records()
             counts = count_by_state(records)
-            text = build_member_report_text(date.today(), counts)
-            QApplication.clipboard().setText(text)
-            QMessageBox.information(self, "완료", "회원 현황 보고 문구를 클립보드에 복사했습니다.")
+            dlg = TrendDialog(counts, self)
+            dlg.exec()
         except Exception as exc:
             QMessageBox.critical(self, "오류", str(exc))
 
