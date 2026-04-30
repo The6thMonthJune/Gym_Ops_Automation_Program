@@ -11,7 +11,7 @@ from src.services.broj_service import LockerRecord
 _DATA_DIR  = Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드자동화"
 _LOCKER_JSON = _DATA_DIR / "locker_data.json"
 
-IMMINENT_DAYS = 30            # 락카 그리드 임박 기준 (일)
+IMMINENT_DAYS = 9             # 락카 그리드 임박 기준 (일)
 MEMBERSHIP_IMMINENT_DAYS = 9  # 회원현황보고 임박 기준 (브로제이 기준, 일)
 
 SECTIONS: list[dict] = [
