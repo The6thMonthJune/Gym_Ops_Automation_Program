@@ -136,20 +136,6 @@ def merge_records(
             if old_key and old_key != key:
                 merged.pop(old_key, None)
 
-        # 락카 만료 보존: 기존에 락카가 있었는데 새 데이터에서 대여권이 소멸된 경우
-        # has_key=False(만료)일 때만 보존 — has_key=True(미등록)는 보존 안 함
-        # 브로제이 락카 관리 페이지처럼 회수 전까지 만료 상태로 유지
-        existing_rec = merged.get(key)
-        if (existing_rec
-                and existing_rec.locker_number > 0
-                and r.locker_number <= 0
-                and not r.has_key):
-            r = dc_replace(r,
-                locker_number=existing_rec.locker_number,
-                locker_room=existing_rec.locker_room,
-                locker_expiry=existing_rec.locker_expiry,
-            )
-
         merged[key] = r
 
     return list(merged.values())
