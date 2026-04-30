@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -47,7 +48,13 @@ def _format_phone(phone: str | None) -> str:
 
 
 class _MemberRow(QWidget):
-    def __init__(self, rec: LockerRecord, shade: bool = False, parent=None):
+    def __init__(
+        self,
+        rec: LockerRecord,
+        expiry_getter: Callable[[LockerRecord], date | None],
+        shade: bool = False,
+        parent=None,
+    ):
         super().__init__(parent)
         bg = "#F9FAFB" if shade else "#FFFFFF"
         self.setStyleSheet(f"background: {bg};")
@@ -66,14 +73,22 @@ class _MemberRow(QWidget):
         lay.addWidget(_cell(rec.member_name, 100))
         lay.addWidget(_cell(f"{rec.locker_number}번", 60, Qt.AlignCenter))
         lay.addWidget(_cell(rec.locker_room or "-", 100))
-        lay.addWidget(_cell(_days_since(rec.locker_expiry), 100))
+        lay.addWidget(_cell(_days_since(expiry_getter(rec)), 100))
         lay.addWidget(_cell(_membership_expiry_label(rec), 140))
         lay.addWidget(_cell(_format_phone(rec.phone_number), 130))
 
 
 class _SectionWidget(QWidget):
-    def __init__(self, title: str, records: list[LockerRecord], color: str, parent=None):
+    def __init__(
+        self,
+        title: str,
+        records: list[LockerRecord],
+        color: str,
+        expiry_getter: Callable[[LockerRecord], date | None],
+        parent=None,
+    ):
         super().__init__(parent)
+        self._expiry_getter = expiry_getter
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 12)
         lay.setSpacing(0)
@@ -130,7 +145,7 @@ class _SectionWidget(QWidget):
 
         # 회원 행
         for i, rec in enumerate(records):
-            lay.addWidget(_MemberRow(rec, shade=(i % 2 == 1)))
+            lay.addWidget(_MemberRow(rec, expiry_getter, shade=(i % 2 == 1)))
 
     def _copy(self, records: list[LockerRecord]) -> None:
         if not records:
@@ -139,7 +154,7 @@ class _SectionWidget(QWidget):
         for r in records:
             lines.append(
                 f"{r.member_name}\t{r.locker_number}번\t{r.locker_room or '-'}\t"
-                f"{_days_since(r.locker_expiry)}\t"
+                f"{_days_since(self._expiry_getter(r))}\t"
                 f"{_membership_expiry_label(r)}\t{_format_phone(r.phone_number)}"
             )
         QApplication.clipboard().setText("\n".join(lines))
@@ -181,15 +196,19 @@ class ExpiredLockerDialog(QDialog):
         c_lay.setContentsMargins(0, 0, 0, 0)
         c_lay.setSpacing(0)
 
+        # 락카만 만료: locker_expiry만 사용 (회원권 만료일로 폴백 안 함)
         c_lay.addWidget(_SectionWidget(
             "🔑 락카 만료 · 회원권 진행중",
             locker_only,
             "#2563EB",
+            expiry_getter=lambda r: r.locker_expiry,
         ))
+        # 둘 다 만료: locker_expiry 없으면 expiry_date 폴백
         c_lay.addWidget(_SectionWidget(
             "⚠️ 락카 · 회원권 모두 만료",
             both_expired,
             "#DC2626",
+            expiry_getter=lambda r: r.locker_expiry or r.expiry_date,
         ))
         c_lay.addStretch()
 
