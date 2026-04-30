@@ -63,7 +63,7 @@ class _MemberRow(QWidget):
         lay.addWidget(_cell(rec.member_name, 100))
         lay.addWidget(_cell(f"{rec.locker_number}번", 60, Qt.AlignCenter))
         lay.addWidget(_cell(rec.locker_room or "-", 100))
-        lay.addWidget(_cell(_days_since(rec.expiry_date), 100))
+        lay.addWidget(_cell(_days_since(rec.locker_expiry or rec.expiry_date), 100))
         lay.addWidget(_cell(_membership_label(rec), 140))
         lay.addWidget(_cell(_format_phone(rec.phone_number), 130))
 
@@ -136,7 +136,7 @@ class _SectionWidget(QWidget):
         for r in records:
             lines.append(
                 f"{r.member_name}\t{r.locker_number}번\t{r.locker_room or '-'}\t"
-                f"{_days_since(r.expiry_date)}\t"
+                f"{_days_since(r.locker_expiry or r.expiry_date)}\t"
                 f"{_membership_label(r)}\t{_format_phone(r.phone_number)}"
             )
         QApplication.clipboard().setText("\n".join(lines))
