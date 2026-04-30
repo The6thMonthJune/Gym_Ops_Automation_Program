@@ -121,20 +121,19 @@ def merge_records(
     phoneless_name: dict[str, str] = {
         r.member_name: _record_key(r)
         for r in existing
-        if not r.phone_number and r.locker_number <= 0
+        if not r.phone_number
     }
 
     for r in new:
         key = _record_key(r)
-        if r.phone_number:
-            # 같은 락카 또는 같은 이름의 전화번호 없는 구버전 레코드 제거
-            old_key = (
-                phoneless_locker.get(r.locker_number)
-                if r.locker_number > 0
-                else phoneless_name.get(r.member_name)
-            )
-            if old_key and old_key != key:
-                merged.pop(old_key, None)
+        # 다른 키로 저장된 구버전 레코드 정리 (락카→전화번호, 락카→이름 키 전환 포함)
+        old_key = (
+            phoneless_locker.get(r.locker_number)
+            if r.locker_number > 0
+            else phoneless_name.get(r.member_name)
+        )
+        if old_key and old_key != key:
+            merged.pop(old_key, None)
 
         merged[key] = r
 
