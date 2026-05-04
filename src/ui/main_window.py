@@ -34,9 +34,12 @@ from src.config.constants import APP_NAME
 from src.config.settings import (
     _KEY_DAILY_FILE,
     _KEY_TOTAL_SALES_FILE,
+    get_nateon_webhook_url,
     load_settings,
     save_settings,
 )
+from src.services.nateon_service import send_webhook
+from src.services.schedule_service import SalesReportScheduler
 
 _NAVY = "#1E2D3D"
 _WHITE = "#FFFFFF"
@@ -184,6 +187,10 @@ class MainWindow(QMainWindow):
         timer = QTimer(self)
         timer.timeout.connect(self._check_date_change)
         timer.start(60_000)
+
+        self._scheduler = SalesReportScheduler(self)
+        self._scheduler.send_triggered.connect(self._auto_send_sales_report)
+        self._scheduler.start()
 
     # ── UI 구성 ───────────────────────────────────────────────────
 
@@ -497,6 +504,25 @@ class MainWindow(QMainWindow):
         if today != self._last_checked_date:
             self._last_checked_date = today
             self._auto_setup_today_file()
+
+    def _auto_send_sales_report(self) -> None:
+        """스케줄러가 트리거하면 매출 보고 문구를 네이트온 웹훅으로 전송한다."""
+        webhook_url = get_nateon_webhook_url()
+        if not webhook_url:
+            return
+        if not self._path_daily or not Path(self._path_daily).exists():
+            return
+        try:
+            parsed = extract_date_from_filename(Path(self._path_daily).name)
+            report_date = datetime(date.today().year, parsed.month, parsed.day)
+        except ValueError:
+            report_date = datetime.today()
+        try:
+            sales = read_sales_values(self._path_daily)
+            text = build_sales_report_text(report_date, sales)
+            send_webhook(webhook_url, text)
+        except Exception:
+            pass  # 자동 전송 실패는 조용히 무시 (사용자 방해 안 함)
 
     # ── 매출 요약 ─────────────────────────────────────────────────
 

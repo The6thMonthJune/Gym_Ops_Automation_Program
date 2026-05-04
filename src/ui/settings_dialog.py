@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from src.config.settings import (
     _KEY_EXPENSE_DAILY_SHEET,
+    _KEY_NATEON_WEBHOOK_URL,
     _KEY_PHONE_IP,
     _KEY_TOTAL_SALES_PASSWORD,
     load_settings,
@@ -56,6 +57,10 @@ class SettingsDialog(QDialog):
         self.phone_ip_input.setPlaceholderText("예: 192.168.219.206")
         form.addRow("센터폰 IP:", self.phone_ip_input)
 
+        self.nateon_webhook_input = QLineEdit()
+        self.nateon_webhook_input.setPlaceholderText("https://teamroom.nate.com/api/webhook/...")
+        form.addRow("네이트온 웹훅 URL:", self.nateon_webhook_input)
+
         layout.addLayout(form)
 
         save_button = QPushButton("저장")
@@ -78,12 +83,14 @@ class SettingsDialog(QDialog):
         self.password_input.setText(settings.get(_KEY_TOTAL_SALES_PASSWORD, ""))
         self.expense_sheet_input.setText(settings.get(_KEY_EXPENSE_DAILY_SHEET, ""))
         self.phone_ip_input.setText(settings.get(_KEY_PHONE_IP, ""))
+        self.nateon_webhook_input.setText(settings.get(_KEY_NATEON_WEBHOOK_URL, ""))
 
     def _save(self) -> None:
         settings = load_settings()
         settings[_KEY_TOTAL_SALES_PASSWORD] = self.password_input.text()
         settings[_KEY_EXPENSE_DAILY_SHEET] = self.expense_sheet_input.text().strip()
         settings[_KEY_PHONE_IP] = self.phone_ip_input.text().strip()
+        settings[_KEY_NATEON_WEBHOOK_URL] = self.nateon_webhook_input.text().strip()
         save_settings(settings)
         QMessageBox.information(self, "완료", "설정이 저장되었습니다.")
         self.accept()
