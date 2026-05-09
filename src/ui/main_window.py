@@ -34,9 +34,12 @@ from src.config.constants import APP_NAME
 from src.config.settings import (
     _KEY_DAILY_FILE,
     _KEY_TOTAL_SALES_FILE,
+    get_nateon_webhook_url,
     load_settings,
     save_settings,
 )
+from src.services.nateon_service import send_webhook
+from src.services.schedule_service import SalesReportScheduler
 
 _NAVY = "#1E2D3D"
 _WHITE = "#FFFFFF"
@@ -185,6 +188,11 @@ class MainWindow(QMainWindow):
         timer.timeout.connect(self._check_date_change)
         timer.start(60_000)
 
+        self._scheduler = SalesReportScheduler(self)
+        self._scheduler.send_triggered.connect(self._auto_send_sales_report)
+        self._scheduler.start()
+        self._refresh_auto_send_status()
+
     # ── UI 구성 ───────────────────────────────────────────────────
 
     def _setup_ui(self) -> None:
@@ -232,8 +240,12 @@ class MainWindow(QMainWindow):
         """)
         settings_btn.clicked.connect(self._open_settings)
 
+        self._auto_send_lbl = QLabel()
+        self._auto_send_lbl.setStyleSheet("font-size: 11px; background: transparent;")
+
         lay.addWidget(title)
         lay.addStretch()
+        lay.addWidget(self._auto_send_lbl)
         lay.addWidget(settings_btn)
         bar.setLayout(lay)
         return bar
@@ -399,6 +411,12 @@ class MainWindow(QMainWindow):
         report_btn.clicked.connect(self._generate_lead_report)
         lay.addWidget(report_btn)
 
+        expiry_btn = QPushButton("📆  만료 임박 회원 조회")
+        expiry_btn.setFixedHeight(36)
+        expiry_btn.setStyleSheet(_slim_style)
+        expiry_btn.clicked.connect(self._open_membership_expiry)
+        lay.addWidget(expiry_btn)
+
         widget.setLayout(lay)
         return widget
 
@@ -497,6 +515,25 @@ class MainWindow(QMainWindow):
         if today != self._last_checked_date:
             self._last_checked_date = today
             self._auto_setup_today_file()
+
+    def _auto_send_sales_report(self) -> None:
+        """스케줄러가 트리거하면 매출 보고 문구를 네이트온 웹훅으로 전송한다."""
+        webhook_url = get_nateon_webhook_url()
+        if not webhook_url:
+            return
+        if not self._path_daily or not Path(self._path_daily).exists():
+            return
+        try:
+            parsed = extract_date_from_filename(Path(self._path_daily).name)
+            report_date = datetime(date.today().year, parsed.month, parsed.day)
+        except ValueError:
+            report_date = datetime.today()
+        try:
+            sales = read_sales_values(self._path_daily)
+            text = build_sales_report_text(report_date, sales)
+            send_webhook(webhook_url, text)
+        except Exception:
+            pass  # 자동 전송 실패는 조용히 무시 (사용자 방해 안 함)
 
     # ── 매출 요약 ─────────────────────────────────────────────────
 
@@ -635,8 +672,21 @@ class MainWindow(QMainWindow):
         from src.ui.locker_dialog import LockerDialog
         LockerDialog(parent=self).exec()
 
+    def _open_membership_expiry(self) -> None:
+        from src.ui.membership_expiry_dialog import MembershipExpiryDialog
+        MembershipExpiryDialog(parent=self).exec()
+
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()
+        self._refresh_auto_send_status()
+
+    def _refresh_auto_send_status(self) -> None:
+        if get_nateon_webhook_url():
+            self._auto_send_lbl.setText("● 자동전송 ON")
+            self._auto_send_lbl.setStyleSheet("font-size: 11px; color: #34D399; background: transparent;")
+        else:
+            self._auto_send_lbl.setText("● 자동전송 미설정")
+            self._auto_send_lbl.setStyleSheet("font-size: 11px; color: #6B7280; background: transparent;")
 
     # ── 설정 저장/불러오기 ────────────────────────────────────────
 

@@ -14,6 +14,7 @@ _KEY_TOTAL_SALES_FILE = "total_sales_file"
 _KEY_TOTAL_SALES_PASSWORD = "total_sales_password"
 _KEY_EXPENSE_DAILY_SHEET = "expense_daily_sheet"
 _KEY_PHONE_IP = "phone_ip"
+_KEY_NATEON_WEBHOOK_URL = "nateon_webhook_url"
 
 
 def load_settings() -> dict:
@@ -39,6 +40,10 @@ def get_password() -> str | None:
 
 def get_phone_ip() -> str:
     return load_settings().get(_KEY_PHONE_IP, "") or ""
+
+
+def get_nateon_webhook_url() -> str:
+    return load_settings().get(_KEY_NATEON_WEBHOOK_URL, "") or ""
 
 
 def get_expense_daily_sheet() -> str:

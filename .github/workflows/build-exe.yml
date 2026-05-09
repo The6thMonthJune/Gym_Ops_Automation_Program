@@ -35,6 +35,8 @@ jobs:
           --name GymOps
           --icon assets/아이콘.ico
           --add-data "assets;assets"
+          --collect-all holidays
+          --hidden-import holidays.countries.KR
           run.py
 
       - name: 빌드 결과물 업로드 (Artifact)
