@@ -277,7 +277,8 @@ class TrendDialog(QDialog):
 
         # Y축 (회원 수)
         axis_y = QValueAxis()
-        padding = max(10, (max_val - min_val) * 0.12)
+        data_range = max_val - min_val
+        padding = max(2, data_range * 0.15)
         axis_y.setRange(max(0, min_val - padding), max_val + padding)
         axis_y.setLabelFormat("%d")
         axis_y.setTitleText("회원 수")

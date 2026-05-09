@@ -16,8 +16,11 @@ def _is_holiday(d: date) -> bool:
     """주말 또는 한국 공휴일이면 True를 반환한다."""
     if d.weekday() >= 5:  # 토(5), 일(6)
         return True
-    kr = holidays_lib.KR(years=d.year)
-    return d in kr
+    try:
+        kr = holidays_lib.KR(years=d.year)
+        return d in kr
+    except Exception:
+        return False  # holidays 라이브러리 오류 시 평일로 처리
 
 
 def get_send_time(d: date) -> tuple[int, int]:

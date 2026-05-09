@@ -191,6 +191,7 @@ class MainWindow(QMainWindow):
         self._scheduler = SalesReportScheduler(self)
         self._scheduler.send_triggered.connect(self._auto_send_sales_report)
         self._scheduler.start()
+        self._refresh_auto_send_status()
 
     # ── UI 구성 ───────────────────────────────────────────────────
 
@@ -239,8 +240,12 @@ class MainWindow(QMainWindow):
         """)
         settings_btn.clicked.connect(self._open_settings)
 
+        self._auto_send_lbl = QLabel()
+        self._auto_send_lbl.setStyleSheet("font-size: 11px; background: transparent;")
+
         lay.addWidget(title)
         lay.addStretch()
+        lay.addWidget(self._auto_send_lbl)
         lay.addWidget(settings_btn)
         bar.setLayout(lay)
         return bar
@@ -663,6 +668,15 @@ class MainWindow(QMainWindow):
 
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()
+        self._refresh_auto_send_status()
+
+    def _refresh_auto_send_status(self) -> None:
+        if get_nateon_webhook_url():
+            self._auto_send_lbl.setText("● 자동전송 ON")
+            self._auto_send_lbl.setStyleSheet("font-size: 11px; color: #34D399; background: transparent;")
+        else:
+            self._auto_send_lbl.setText("● 자동전송 미설정")
+            self._auto_send_lbl.setStyleSheet("font-size: 11px; color: #6B7280; background: transparent;")
 
     # ── 설정 저장/불러오기 ────────────────────────────────────────
 
