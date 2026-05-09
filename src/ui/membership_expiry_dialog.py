@@ -60,7 +60,9 @@ class MembershipExpiryDialog(QDialog):
     def _build_controls(self) -> QHBoxLayout:
         row = QHBoxLayout()
 
-        row.addWidget(QLabel("기준: 만료까지"))
+        lbl = QLabel("기준: 만료까지")
+        lbl.setStyleSheet("color: #111827; font-size: 13px;")
+        row.addWidget(lbl)
 
         self._spinbox = QSpinBox()
         self._spinbox.setRange(1, 365)
@@ -68,7 +70,7 @@ class MembershipExpiryDialog(QDialog):
         self._spinbox.setSuffix("일 이하")
         self._spinbox.setFixedWidth(130)
         self._spinbox.setStyleSheet(
-            "QSpinBox { background: white; border: 1px solid #D1D5DB; border-radius: 6px; padding: 4px 8px; font-size: 13px; }"
+            "QSpinBox { background: white; color: #111827; border: 1px solid #D1D5DB; border-radius: 6px; padding: 4px 8px; font-size: 13px; }"
         )
         self._spinbox.valueChanged.connect(self._refresh)
         row.addWidget(self._spinbox)
@@ -96,7 +98,7 @@ class MembershipExpiryDialog(QDialog):
         self._table.setStyleSheet("""
             QTableWidget { background: white; border-radius: 8px; border: none; font-size: 13px; }
             QTableWidget::item { padding: 6px; }
-            QHeaderView::section { background: #F9FAFB; border-bottom: 1px solid #E5E7EB; font-weight: 600; padding: 6px; }
+            QHeaderView::section { background: #F9FAFB; color: #374151; border-bottom: 1px solid #E5E7EB; font-weight: 600; padding: 6px; }
         """)
         return self._table
 
@@ -138,10 +140,9 @@ class MembershipExpiryDialog(QDialog):
             days_item.setTextAlignment(Qt.AlignCenter)
             membership_item = QTableWidgetItem(r.membership_type)
 
-            if days <= 10:
-                red = QColor("#B91C1C")
-                for item in (name_item, phone_item, days_item, membership_item):
-                    item.setForeground(red)
+            fg = QColor("#B91C1C") if days < 10 else QColor("#111827")
+            for item in (name_item, phone_item, days_item, membership_item):
+                item.setForeground(fg)
 
             self._table.setItem(i, 0, name_item)
             self._table.setItem(i, 1, phone_item)
