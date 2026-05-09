@@ -411,6 +411,12 @@ class MainWindow(QMainWindow):
         report_btn.clicked.connect(self._generate_lead_report)
         lay.addWidget(report_btn)
 
+        expiry_btn = QPushButton("📆  만료 임박 회원 조회")
+        expiry_btn.setFixedHeight(36)
+        expiry_btn.setStyleSheet(_slim_style)
+        expiry_btn.clicked.connect(self._open_membership_expiry)
+        lay.addWidget(expiry_btn)
+
         widget.setLayout(lay)
         return widget
 
@@ -665,6 +671,10 @@ class MainWindow(QMainWindow):
     def _open_locker_dialog(self) -> None:
         from src.ui.locker_dialog import LockerDialog
         LockerDialog(parent=self).exec()
+
+    def _open_membership_expiry(self) -> None:
+        from src.ui.membership_expiry_dialog import MembershipExpiryDialog
+        MembershipExpiryDialog(parent=self).exec()
 
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()
