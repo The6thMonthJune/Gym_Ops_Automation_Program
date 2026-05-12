@@ -85,6 +85,7 @@ class _SectionWidget(QWidget):
         records: list[LockerRecord],
         color: str,
         expiry_getter: Callable[[LockerRecord], date | None],
+        checklist_type: str,  # "locker_only" | "both_expired"
         parent=None,
     ):
         super().__init__(parent)
@@ -98,23 +99,33 @@ class _SectionWidget(QWidget):
         header_bar.setFixedHeight(36)
         header_bar.setStyleSheet(f"background: {color}; border-radius: 6px;")
         h_lay = QHBoxLayout(header_bar)
-        h_lay.setContentsMargins(12, 0, 12, 0)
+        h_lay.setContentsMargins(12, 0, 8, 0)
+        h_lay.setSpacing(6)
 
         title_lbl = QLabel(f"{title}  ({len(records)}명)")
         title_lbl.setStyleSheet(
             "color: white; font-size: 13px; font-weight: bold; background: transparent;"
         )
-        copy_btn = QPushButton("📋 복사")
-        copy_btn.setFixedSize(64, 24)
-        copy_btn.setStyleSheet("""
+
+        _btn_style = """
             QPushButton { background: rgba(255,255,255,0.2); color: white;
-                          border: none; border-radius: 4px; font-size: 11px; }
+                          border: none; border-radius: 4px; font-size: 11px; padding: 0 6px; }
             QPushButton:hover { background: rgba(255,255,255,0.35); }
-        """)
-        copy_btn.clicked.connect(lambda: self._copy(records))
+        """
+        phone_btn = QPushButton("📞 전화번호")
+        phone_btn.setFixedHeight(24)
+        phone_btn.setStyleSheet(_btn_style)
+        phone_btn.clicked.connect(lambda: self._copy_phones(records))
+
+        list_btn = QPushButton("📋 명단")
+        list_btn.setFixedHeight(24)
+        list_btn.setStyleSheet(_btn_style)
+        list_btn.clicked.connect(lambda: self._copy_checklist(records, checklist_type))
+
         h_lay.addWidget(title_lbl)
         h_lay.addStretch()
-        h_lay.addWidget(copy_btn)
+        h_lay.addWidget(phone_btn)
+        h_lay.addWidget(list_btn)
         lay.addWidget(header_bar)
 
         if not records:
@@ -147,18 +158,25 @@ class _SectionWidget(QWidget):
         for i, rec in enumerate(records):
             lay.addWidget(_MemberRow(rec, expiry_getter, shade=(i % 2 == 1)))
 
-    def _copy(self, records: list[LockerRecord]) -> None:
+    def _copy_phones(self, records: list[LockerRecord]) -> None:
+        phones = [r.phone_number for r in records if r.phone_number]
+        if not phones:
+            QMessageBox.information(self.window(), "알림", "저장된 전화번호가 없습니다.")
+            return
+        QApplication.clipboard().setText("\n".join(phones))
+        QMessageBox.information(self.window(), "완료", f"{len(phones)}명의 전화번호를 복사했습니다.")
+
+    def _copy_checklist(self, records: list[LockerRecord], checklist_type: str) -> None:
         if not records:
             return
-        lines = ["이름\t락카번호\t구역\t경과\t보유회원권\t휴대폰"]
+        membership_status = "락카만 만료" if checklist_type == "locker_only" else "둘 다 만료"
+        lines = ["이름\t락카번호\t이용권 만료\t자물쇠\t물품 유무\t연락 유무\t락카 회수"]
         for r in records:
             lines.append(
-                f"{r.member_name}\t{r.locker_number}번\t{r.locker_room or '-'}\t"
-                f"{_days_since(self._expiry_getter(r))}\t"
-                f"{_membership_expiry_label(r)}\t{_format_phone(r.phone_number)}"
+                f"{r.member_name}\t{r.locker_number}번\t{membership_status}\t\t\t\t"
             )
         QApplication.clipboard().setText("\n".join(lines))
-        QMessageBox.information(self.window(), "완료", "클립보드에 복사되었습니다.")
+        QMessageBox.information(self.window(), "완료", "체크리스트를 복사했습니다.\n엑셀에 붙여넣기 하세요.")
 
 
 class ExpiredLockerDialog(QDialog):
@@ -202,6 +220,7 @@ class ExpiredLockerDialog(QDialog):
             locker_only,
             "#2563EB",
             expiry_getter=lambda r: r.locker_expiry,
+            checklist_type="locker_only",
         ))
         # 둘 다 만료: locker_expiry 없으면 expiry_date 폴백
         c_lay.addWidget(_SectionWidget(
@@ -209,6 +228,7 @@ class ExpiredLockerDialog(QDialog):
             both_expired,
             "#DC2626",
             expiry_getter=lambda r: r.locker_expiry or r.expiry_date,
+            checklist_type="both_expired",
         ))
         c_lay.addStretch()
 

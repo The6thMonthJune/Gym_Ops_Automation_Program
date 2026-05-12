@@ -184,9 +184,11 @@ class MainWindow(QMainWindow):
         self._refresh_sales()
 
         self._last_checked_date = date.today()
+        self._last_checked_month = date.today().month
         timer = QTimer(self)
         timer.timeout.connect(self._check_date_change)
         timer.start(60_000)
+        QTimer.singleShot(2000, self._check_monthly_sheet)
 
         self._scheduler = SalesReportScheduler(self)
         self._scheduler.send_triggered.connect(self._auto_send_sales_report)
@@ -515,6 +517,43 @@ class MainWindow(QMainWindow):
         if today != self._last_checked_date:
             self._last_checked_date = today
             self._auto_setup_today_file()
+        if today.month != self._last_checked_month:
+            self._last_checked_month = today.month
+            self._check_monthly_sheet()
+
+    def _check_monthly_sheet(self) -> None:
+        if not self._path_total or not Path(self._path_total).exists():
+            return
+        today = date.today()
+        try:
+            from src.config.settings import get_password
+            from src.services.total_sales_service import find_monthly_sheet_name, open_workbook
+            wb = open_workbook(self._path_total, get_password())
+            find_monthly_sheet_name(wb.sheetnames, today.year, today.month)
+        except ValueError:
+            reply = QMessageBox.question(
+                self,
+                "이번 달 시트 없음",
+                f"총매출 파일에 {today.month}월 시트가 없습니다.\n"
+                "전월 시트를 복사해 자동 생성할까요?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if reply == QMessageBox.Yes:
+                self._create_monthly_sheet(today.year, today.month)
+        except Exception:
+            pass
+
+    def _create_monthly_sheet(self, year: int, month: int) -> None:
+        try:
+            from src.services.entry_service import create_monthly_sheet
+            from src.config.settings import get_password
+            sheet_name = create_monthly_sheet(self._path_total, year, month, get_password())
+            QMessageBox.information(
+                self, "완료",
+                f"{month}월 매출 시트가 생성되었습니다.\n시트 이름: {sheet_name}"
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "시트 생성 실패", str(exc))
 
     def _auto_send_sales_report(self) -> None:
         """스케줄러가 트리거하면 매출 보고 문구를 네이트온 웹훅으로 전송한다."""
