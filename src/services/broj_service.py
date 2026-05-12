@@ -53,7 +53,7 @@ def _parse_locker_key_expiry(val) -> date | None:
     """
     if not val:
         return None
-    m = re.search(r"~(\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2})", str(val))
+    m = re.search(r"~\s*(\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2})", str(val))
     if m:
         return _parse_date(m.group(1))
     return None
