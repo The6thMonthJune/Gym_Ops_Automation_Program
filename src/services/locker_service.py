@@ -230,8 +230,8 @@ def get_expired_by_category(
             continue
         if _compute_state(rec) != "expired":
             continue
-        # 필드에 값이 있으면 이용권 보유 중 (활성/임박 모두 포함)
-        if rec.membership_type:
+        membership_state = _compute_membership_state(rec)
+        if membership_state in ("active", "imminent", "holding", "scheduled"):
             locker_only.append(rec)
         else:
             both_expired.append(rec)
