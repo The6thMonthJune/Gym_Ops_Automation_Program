@@ -135,8 +135,9 @@ def read_xls_headers(xls_path: str | Path) -> list[str]:
     """XLS 파일의 헤더 행만 빠르게 읽어 반환한다 (디버그용)."""
     resolved = Path(xls_path).resolve()
     app = xw.App(visible=False)
+    app.display_alerts = False
     try:
-        book = app.books.open(str(resolved))
+        book = app.books.open(str(resolved), update_links=0, ignore_read_only_recommended=True)
         sheet = book.sheets[0]
         for r in range(1, 11):
             vals = sheet.range((r, 1), (r, 50)).value or []
@@ -163,10 +164,11 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
     """
     resolved = Path(xls_path).resolve()
     app = xw.App(visible=False)
+    app.display_alerts = False
     records: list[LockerRecord] = []
 
     try:
-        book = app.books.open(str(resolved))
+        book = app.books.open(str(resolved), update_links=0, ignore_read_only_recommended=True)
         sheet = book.sheets[0]
 
         # 헤더 행 탐색

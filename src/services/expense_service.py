@@ -75,8 +75,12 @@ def _open_book(path: str | Path) -> tuple:
         pass
 
     new_app = xw.App(visible=False)
+    new_app.display_alerts = False
     try:
-        book = new_app.books.open(str(resolved))
+        book = new_app.books.open(
+            str(resolved),
+            update_links=0, ignore_read_only_recommended=True,
+        )
         return book, False
     except Exception:
         new_app.quit()
@@ -170,11 +174,18 @@ def write_expense_to_total(
         pass
 
     new_app = xw.App(visible=False)
+    new_app.display_alerts = False
     try:
         if password:
-            book = new_app.books.open(str(resolved), password=password)
+            book = new_app.books.open(
+                str(resolved), password=password,
+                update_links=0, ignore_read_only_recommended=True,
+            )
         else:
-            book = new_app.books.open(str(resolved))
+            book = new_app.books.open(
+                str(resolved),
+                update_links=0, ignore_read_only_recommended=True,
+            )
         return _write_expense_total(book, entry, was_open=False)
     except Exception:
         new_app.quit()

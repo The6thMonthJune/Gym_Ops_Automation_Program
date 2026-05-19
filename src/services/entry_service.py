@@ -68,11 +68,18 @@ def _open_book(path: str | Path, password: str | None = None) -> tuple:
 
     # 열려 있지 않으면 숨김 인스턴스로 열기
     new_app = xw.App(visible=False)
+    new_app.display_alerts = False  # 모든 Excel 팝업(복사본·읽기전용 권장 등) 차단
     try:
         if password:
-            book = new_app.books.open(str(resolved), password=password)
+            book = new_app.books.open(
+                str(resolved), password=password,
+                update_links=0, ignore_read_only_recommended=True,
+            )
         else:
-            book = new_app.books.open(str(resolved))
+            book = new_app.books.open(
+                str(resolved),
+                update_links=0, ignore_read_only_recommended=True,
+            )
         return book, False
     except Exception:
         new_app.quit()
