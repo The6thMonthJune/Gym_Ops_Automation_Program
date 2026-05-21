@@ -55,3 +55,61 @@ def build_sales_report_text(
         f"계좌:\n{format_currency(sales['transfer'])}\n\n"
         f"총합:\n{format_currency(sales['total'])}"
     )
+
+
+# ── 월 목표 카운트다운 ────────────────────────────────────────────────
+
+# 총매출 파일 월 시트에서 센터/피티 금액 컬럼 (1-based)
+# 센터: 시작 B(2) → 이름 D(4), 금액 G(7)
+# 레슨: 시작 P(16) → 이름 R(18), 금액 U(21)
+_MONTHLY_SECTION_COLS = {
+    "center": (4, 7),
+    "pt": (18, 21),
+}
+_MONTHLY_DATA_START_ROW = 12
+
+
+def read_monthly_totals_by_section(
+    total_sales_path: str | Path,
+    year: int,
+    month: int,
+    password: str | None = None,
+) -> dict[str, int]:
+    """총매출 파일의 해당 월 시트에서 센터/피티 매출 합계를 반환한다."""
+    from src.services.total_sales_service import find_monthly_sheet_name, open_workbook
+
+    wb = open_workbook(total_sales_path, password=password)
+    try:
+        sheet_name = find_monthly_sheet_name(wb.sheetnames, year, month)
+        ws = wb[sheet_name]
+        totals: dict[str, int] = {"center": 0, "pt": 0}
+        max_row = ws.max_row or 500
+        for key, (name_col, amount_col) in _MONTHLY_SECTION_COLS.items():
+            for row_num in range(_MONTHLY_DATA_START_ROW, max_row + 1):
+                name_val = ws.cell(row=row_num, column=name_col).value
+                if not name_val or (isinstance(name_val, str) and name_val.startswith("=")):
+                    continue
+                amount_val = ws.cell(row=row_num, column=amount_col).value
+                if isinstance(amount_val, (int, float)) and amount_val > 0:
+                    totals[key] += int(amount_val)
+        return totals
+    finally:
+        wb.close()
+
+
+def build_countdown_text(
+    center_sales: int,
+    pt_sales: int,
+    center_target: int,
+    pt_target: int,
+) -> str:
+    total = center_sales + pt_sales
+    return "\n".join([
+        f"센터: {format_currency(center_sales)}",
+        f"피티: {format_currency(pt_sales)}",
+        f"총합: {format_currency(total)}",
+        "",
+        "목표까지 앞으로",
+        f"센터: {format_currency(center_target - center_sales)}",
+        f"피티: {format_currency(pt_target - pt_sales)}",
+    ])

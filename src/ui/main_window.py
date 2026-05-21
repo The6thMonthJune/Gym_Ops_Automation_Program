@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from src.core.file_naming import extract_date_from_filename
 from src.services.daily_file_service import create_next_daily_file
 from src.services.sales_report_service import build_sales_report_text, read_sales_values
+from src.ui.countdown_dialog import CountdownDialog
 from src.services.locker_service import count_by_state, load_records, merge_records, save_records
 from src.ui.trend_dialog import TrendDialog
 from src.services.broj_service import parse_xls
@@ -419,6 +420,12 @@ class MainWindow(QMainWindow):
         expiry_btn.clicked.connect(self._open_membership_expiry)
         lay.addWidget(expiry_btn)
 
+        countdown_btn = QPushButton("🎯  월 목표 카운트다운")
+        countdown_btn.setFixedHeight(36)
+        countdown_btn.setStyleSheet(_slim_style)
+        countdown_btn.clicked.connect(self._open_countdown)
+        lay.addWidget(countdown_btn)
+
         widget.setLayout(lay)
         return widget
 
@@ -714,6 +721,12 @@ class MainWindow(QMainWindow):
     def _open_membership_expiry(self) -> None:
         from src.ui.membership_expiry_dialog import MembershipExpiryDialog
         MembershipExpiryDialog(parent=self).exec()
+
+    def _open_countdown(self) -> None:
+        if not self._path_total:
+            QMessageBox.warning(self, "파일 미등록", "총매출 파일을 먼저 등록해주세요.")
+            return
+        CountdownDialog(self._path_total, parent=self).exec()
 
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()

@@ -16,6 +16,8 @@ _KEY_EXPENSE_DAILY_SHEET = "expense_daily_sheet"
 _KEY_PHONE_IP = "phone_ip"
 _KEY_NATEON_WEBHOOK_URL = "nateon_webhook_url"
 _KEY_APARTMENT_COMPLEXES = "apartment_complexes"
+_KEY_MONTHLY_TARGET_CENTER = "monthly_target_center"
+_KEY_MONTHLY_TARGET_PT = "monthly_target_pt"
 
 
 def load_settings() -> dict:
@@ -55,3 +57,12 @@ def get_expense_daily_sheet() -> str:
 def get_apartment_complexes() -> list[str]:
     """설정에 저장된 아파트 단지 목록을 반환한다. 미설정 시 빈 리스트."""
     return load_settings().get(_KEY_APARTMENT_COMPLEXES, []) or []
+
+
+def get_monthly_targets() -> tuple[int, int]:
+    """(센터 목표금액, 피티 목표금액) 반환. 미설정 시 0."""
+    s = load_settings()
+    return (
+        int(s.get(_KEY_MONTHLY_TARGET_CENTER) or 0),
+        int(s.get(_KEY_MONTHLY_TARGET_PT) or 0),
+    )
