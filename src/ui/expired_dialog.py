@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import date
 from typing import Callable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QMarginsF, Qt
+from PySide6.QtGui import QPageLayout, QPageSize, QTextDocument
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -85,6 +87,7 @@ class _SectionWidget(QWidget):
         records: list[LockerRecord],
         color: str,
         expiry_getter: Callable[[LockerRecord], date | None],
+        checklist_type: str,  # "locker_only" | "both_expired"
         parent=None,
     ):
         super().__init__(parent)
@@ -98,23 +101,33 @@ class _SectionWidget(QWidget):
         header_bar.setFixedHeight(36)
         header_bar.setStyleSheet(f"background: {color}; border-radius: 6px;")
         h_lay = QHBoxLayout(header_bar)
-        h_lay.setContentsMargins(12, 0, 12, 0)
+        h_lay.setContentsMargins(12, 0, 8, 0)
+        h_lay.setSpacing(6)
 
         title_lbl = QLabel(f"{title}  ({len(records)}명)")
         title_lbl.setStyleSheet(
             "color: white; font-size: 13px; font-weight: bold; background: transparent;"
         )
-        copy_btn = QPushButton("📋 복사")
-        copy_btn.setFixedSize(64, 24)
-        copy_btn.setStyleSheet("""
+
+        _btn_style = """
             QPushButton { background: rgba(255,255,255,0.2); color: white;
-                          border: none; border-radius: 4px; font-size: 11px; }
+                          border: none; border-radius: 4px; font-size: 11px; padding: 0 6px; }
             QPushButton:hover { background: rgba(255,255,255,0.35); }
-        """)
-        copy_btn.clicked.connect(lambda: self._copy(records))
+        """
+        phone_btn = QPushButton("📞 전화번호")
+        phone_btn.setFixedHeight(24)
+        phone_btn.setStyleSheet(_btn_style)
+        phone_btn.clicked.connect(lambda: self._copy_phones(records))
+
+        print_btn = QPushButton("🖨️ 출력")
+        print_btn.setFixedHeight(24)
+        print_btn.setStyleSheet(_btn_style)
+        print_btn.clicked.connect(lambda: self._print_checklist(records, title, checklist_type))
+
         h_lay.addWidget(title_lbl)
         h_lay.addStretch()
-        h_lay.addWidget(copy_btn)
+        h_lay.addWidget(phone_btn)
+        h_lay.addWidget(print_btn)
         lay.addWidget(header_bar)
 
         if not records:
@@ -147,18 +160,78 @@ class _SectionWidget(QWidget):
         for i, rec in enumerate(records):
             lay.addWidget(_MemberRow(rec, expiry_getter, shade=(i % 2 == 1)))
 
-    def _copy(self, records: list[LockerRecord]) -> None:
-        if not records:
+    def _copy_phones(self, records: list[LockerRecord]) -> None:
+        phones = [_format_phone(r.phone_number) for r in records if r.phone_number]
+        if not phones:
+            QMessageBox.information(self.window(), "알림", "저장된 전화번호가 없습니다.")
             return
-        lines = ["이름\t락카번호\t구역\t경과\t보유회원권\t휴대폰"]
-        for r in records:
-            lines.append(
-                f"{r.member_name}\t{r.locker_number}번\t{r.locker_room or '-'}\t"
-                f"{_days_since(self._expiry_getter(r))}\t"
-                f"{_membership_expiry_label(r)}\t{_format_phone(r.phone_number)}"
+        QApplication.clipboard().setText("\n".join(phones))
+        QMessageBox.information(self.window(), "완료", f"{len(phones)}명의 전화번호를 복사했습니다.")
+
+    def _print_checklist(self, records: list[LockerRecord], title: str, checklist_type: str) -> None:
+        today = date.today()
+        membership_col = "이용권 상태"
+
+        th_style = (
+            "background:#1E2D3D;color:white;padding:5px 8px;"
+            "font-size:9pt;border:1px solid #374151;"
+        )
+        td_style = "padding:5px 8px;font-size:9pt;border:1px solid #D1D5DB;"
+        td_c_style = td_style + "text-align:center;"
+        td_empty_style = td_style + "min-width:60px;"
+
+        rows_html = ""
+        for i, r in enumerate(records):
+            bg = "#F9FAFB" if i % 2 else "#FFFFFF"
+            membership_state = "락카만 만료" if checklist_type == "locker_only" else "둘 다 만료"
+            rows_html += (
+                f'<tr style="background:{bg};">'
+                f'<td style="{td_style}">{r.member_name}</td>'
+                f'<td style="{td_c_style}">{r.locker_number}번</td>'
+                f'<td style="{td_style}">{r.locker_room or "-"}</td>'
+                f'<td style="{td_c_style}">{_days_since(self._expiry_getter(r))}</td>'
+                f'<td style="{td_c_style}">{membership_state}</td>'
+                f'<td style="{td_style}">{_format_phone(r.phone_number)}</td>'
+                f'<td style="{td_empty_style}"></td>'
+                f'<td style="{td_empty_style}"></td>'
+                f'<td style="{td_empty_style}"></td>'
+                f'</tr>'
             )
-        QApplication.clipboard().setText("\n".join(lines))
-        QMessageBox.information(self.window(), "완료", "클립보드에 복사되었습니다.")
+
+        html = (
+            f'<html><body style="font-family:\'Malgun Gothic\',sans-serif;">'
+            f'<h2 style="color:#1E2D3D;margin-bottom:2px;">{title}</h2>'
+            f'<p style="color:#6B7280;font-size:9pt;margin-top:0;">'
+            f'{today.year}년 {today.month}월 {today.day}일 기준 · 총 {len(records)}명</p>'
+            f'<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;">'
+            f'<tr>'
+            f'<th style="{th_style}">이름</th>'
+            f'<th style="{th_style}">락카번호</th>'
+            f'<th style="{th_style}">구역</th>'
+            f'<th style="{th_style}">경과</th>'
+            f'<th style="{th_style}">{membership_col}</th>'
+            f'<th style="{th_style}">연락처</th>'
+            f'<th style="{th_style}">자물쇠</th>'
+            f'<th style="{th_style}">물품 유무</th>'
+            f'<th style="{th_style}">락카 회수</th>'
+            f'</tr>'
+            f'{rows_html}'
+            f'</table></body></html>'
+        )
+
+        doc = QTextDocument()
+        doc.setHtml(html)
+
+        printer = QPrinter(QPrinter.HighResolution)
+        printer.setPageLayout(QPageLayout(
+            QPageSize(QPageSize.A4),
+            QPageLayout.Landscape,
+            QMarginsF(10, 10, 10, 10),
+        ))
+
+        dlg = QPrintDialog(printer, self.window())
+        if dlg.exec() == QPrintDialog.Accepted:
+            doc.print_(printer)
 
 
 class ExpiredLockerDialog(QDialog):
@@ -202,6 +275,7 @@ class ExpiredLockerDialog(QDialog):
             locker_only,
             "#2563EB",
             expiry_getter=lambda r: r.locker_expiry,
+            checklist_type="locker_only",
         ))
         # 둘 다 만료: locker_expiry 없으면 expiry_date 폴백
         c_lay.addWidget(_SectionWidget(
@@ -209,6 +283,7 @@ class ExpiredLockerDialog(QDialog):
             both_expired,
             "#DC2626",
             expiry_getter=lambda r: r.locker_expiry or r.expiry_date,
+            checklist_type="both_expired",
         ))
         c_lay.addStretch()
 

@@ -52,6 +52,7 @@ class PaymentDialog(QDialog):
         super().__init__(parent)
         self.daily_file = daily_file
         self.total_sales_file = total_sales_file
+        self._excel_saved = False  # 엑셀 저장 완료 여부
         self.setWindowTitle("결제 입력 및 보고 문구 생성")
         self.setMinimumWidth(560)
         self._setup_ui()
@@ -154,7 +155,10 @@ class PaymentDialog(QDialog):
         copy_button.clicked.connect(self._copy_message)
         layout.addWidget(copy_button)
 
-        self._kakao_widget = KakaoSendWidget(self._get_kakao_message)
+        self._kakao_widget = KakaoSendWidget(
+            self._get_kakao_message,
+            close_after_fn=lambda: self._excel_saved,
+        )
         layout.addWidget(self._kakao_widget)
 
         self.setLayout(layout)
@@ -316,6 +320,7 @@ class PaymentDialog(QDialog):
         if errors:
             QMessageBox.critical(self, "오류", "\n".join(errors))
         if results:
+            self._excel_saved = True
             QMessageBox.information(self, "완료", "\n".join(results))
             if self.membership_type_combo.currentText() == "신규":
                 dlg = LeadDialog(

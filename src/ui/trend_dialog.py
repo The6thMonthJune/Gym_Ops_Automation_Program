@@ -249,6 +249,15 @@ class TrendDialog(QDialog):
             pen.setColor(QColor(color))
             pen.setWidth(2)
             series.setPen(pen)
+            series.setPointsVisible(True)
+            series.setPointLabelsVisible(True)
+            series.setPointLabelsFormat("@yPoint")
+            series.setPointLabelsColor(QColor(color))
+            series.setPointLabelsClipping(False)
+            lbl_font = series.pointLabelsFont()
+            lbl_font.setPointSize(9)
+            lbl_font.setBold(True)
+            series.setPointLabelsFont(lbl_font)
 
             for snap in snaps:
                 d = date.fromisoformat(snap["date"])

@@ -49,10 +49,11 @@ SECTION_OFFSET: dict[str, int] = {
 def _parse_locker_key_expiry(val) -> date | None:
     """보유 대여권 문자열에서 락카 만료일을 추출한다.
     예: '락커 대여권(활성) 2026.04.28~2027.04.27' → date(2027, 4, 27)
+    월·일이 한 자리인 경우(예: 2027.4.27)도 처리한다.
     """
     if not val:
         return None
-    m = re.search(r"~(\d{4}[.\-/]\d{2}[.\-/]\d{2})", str(val))
+    m = re.search(r"~\s*(\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2})", str(val))
     if m:
         return _parse_date(m.group(1))
     return None
@@ -134,8 +135,9 @@ def read_xls_headers(xls_path: str | Path) -> list[str]:
     """XLS 파일의 헤더 행만 빠르게 읽어 반환한다 (디버그용)."""
     resolved = Path(xls_path).resolve()
     app = xw.App(visible=False)
+    app.display_alerts = False
     try:
-        book = app.books.open(str(resolved))
+        book = app.books.open(str(resolved), update_links=0, ignore_read_only_recommended=True)
         sheet = book.sheets[0]
         for r in range(1, 11):
             vals = sheet.range((r, 1), (r, 50)).value or []
@@ -162,10 +164,11 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
     """
     resolved = Path(xls_path).resolve()
     app = xw.App(visible=False)
+    app.display_alerts = False
     records: list[LockerRecord] = []
 
     try:
-        book = app.books.open(str(resolved))
+        book = app.books.open(str(resolved), update_links=0, ignore_read_only_recommended=True)
         sheet = book.sheets[0]
 
         # 헤더 행 탐색
@@ -206,10 +209,11 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
             # A열(index 0)이 "홀딩"이면 홀딩 회원
             is_holding = str(row_vals[0] or "").strip() == "홀딩"
 
-            # 보유 대여권 여부 — 락커 대여권만 has_key=True (운동복 대여권 제외)
+            # 보유 대여권 여부 — 락커/락카 대여권만 has_key=True (운동복 대여권 제외)
+            # 공백 유무 무관하게 인식: "락커 대여권", "락카대여권" 등
             key_val = _get_cell(row_vals, ci_key)
             key_str = str(key_val).strip() if key_val else ""
-            is_locker_key = "락커 대여권" in key_str or "락카 대여권" in key_str
+            is_locker_key = ("락커" in key_str or "락카" in key_str) and "대여권" in key_str
             has_key = (
                 bool(key_val)
                 and key_str not in ("", "0", "None", "없음", "X", "x")

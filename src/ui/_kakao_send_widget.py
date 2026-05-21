@@ -35,9 +35,11 @@ _JIKWON_STYLE = _BTN_STYLE.format(bg="#F59E0B", hover="#D97706", pressed="#B4530
 class KakaoSendWidget(QWidget):
     """알바방 / 직원방 카톡 자동 전송 버튼 위젯."""
 
-    def __init__(self, get_message_fn, parent=None) -> None:
+    def __init__(self, get_message_fn, close_after_fn=None, parent=None) -> None:
         super().__init__(parent)
-        self._get_message = get_message_fn  # () -> str | None
+        self._get_message = get_message_fn      # () -> str | None
+        self._close_after_fn = close_after_fn   # () -> bool | None (None = 항상 닫기)
+        self._last_sent: str | None = None      # 마지막 전송 성공 문구 (중복 전송 방지)
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -93,6 +95,16 @@ class KakaoSendWidget(QWidget):
             QMessageBox.warning(self.window(), "경고", "먼저 카톡 문구를 생성해주세요.")
             return
 
+        if message == self._last_sent:
+            reply = QMessageBox.warning(
+                self.window(), "중복 전송 경고",
+                "이미 전송한 문구와 동일합니다.\n새 문구를 생성하지 않고 다시 전송하시겠습니까?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
         ip = get_phone_ip()
         if not ip:
             QMessageBox.warning(
@@ -103,9 +115,12 @@ class KakaoSendWidget(QWidget):
 
         try:
             adb_service.send_kakao(ip, target, message)
+            self._last_sent = message
             QMessageBox.information(
                 self.window(), "전송 완료", f"{target}방으로 전송했습니다."
             )
-            self.window().accept()
+            should_close = self._close_after_fn() if self._close_after_fn else True
+            if should_close:
+                self.window().accept()
         except Exception as exc:
             QMessageBox.critical(self.window(), "전송 실패", str(exc))
