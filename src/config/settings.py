@@ -15,6 +15,7 @@ _KEY_TOTAL_SALES_PASSWORD = "total_sales_password"
 _KEY_EXPENSE_DAILY_SHEET = "expense_daily_sheet"
 _KEY_PHONE_IP = "phone_ip"
 _KEY_NATEON_WEBHOOK_URL = "nateon_webhook_url"
+_KEY_APARTMENT_COMPLEXES = "apartment_complexes"
 
 
 def load_settings() -> dict:
@@ -49,3 +50,8 @@ def get_nateon_webhook_url() -> str:
 def get_expense_daily_sheet() -> str:
     """데일리 파일의 지출 시트 이름을 반환한다. 미설정 시 기본값 '데일리지출'."""
     return load_settings().get(_KEY_EXPENSE_DAILY_SHEET, "") or "데일리지출"
+
+
+def get_apartment_complexes() -> list[str]:
+    """설정에 저장된 아파트 단지 목록을 반환한다. 미설정 시 빈 리스트."""
+    return load_settings().get(_KEY_APARTMENT_COMPLEXES, []) or []

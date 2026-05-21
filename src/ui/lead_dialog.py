@@ -5,6 +5,7 @@ from datetime import date
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QComboBox,
     QDialog,
     QFormLayout,
     QHBoxLayout,
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.config.settings import get_apartment_complexes
 from src.services.lead_service import CHANNELS, MemberLead, save_lead
 
 
@@ -75,10 +77,23 @@ class LeadDialog(QDialog):
             lambda checked: self._detail_input.setEnabled(checked)
         )
 
-        # 거주지역
+        # 거주지역 — 설정에 등록된 아파트 단지 목록에서 선택
+        apts = get_apartment_complexes()
+        self._district_combo = QComboBox()
+        if apts:
+            self._district_combo.addItem("선택 안 함")
+            for apt in apts:
+                self._district_combo.addItem(apt)
+            self._district_combo.addItem("직접 입력")
+        else:
+            self._district_combo.addItem("직접 입력")
+        self._district_combo.currentTextChanged.connect(self._on_district_changed)
+        form.addRow("거주지역:", self._district_combo)
+
         self._district_input = QLineEdit()
-        self._district_input.setPlaceholderText("예: 중산동, 화정동 …")
-        form.addRow("거주지역:", self._district_input)
+        self._district_input.setPlaceholderText("거주지 직접 입력")
+        self._district_input.setVisible(not bool(apts))
+        form.addRow("", self._district_input)
 
         layout.addLayout(form)
 
@@ -94,6 +109,9 @@ class LeadDialog(QDialog):
 
         self.setLayout(layout)
 
+    def _on_district_changed(self, text: str) -> None:
+        self._district_input.setVisible(text == "직접 입력")
+
     def _selected_channel(self) -> str:
         for ch, rb in self._channel_radios.items():
             if rb.isChecked():
@@ -103,7 +121,11 @@ class LeadDialog(QDialog):
     def _save(self) -> None:
         channel = self._selected_channel()
         detail = self._detail_input.text().strip() if channel == "기타" else None
-        district = self._district_input.text().strip() or None
+        selected = self._district_combo.currentText()
+        if selected in ("선택 안 함", "직접 입력"):
+            district = self._district_input.text().strip() or None
+        else:
+            district = selected
 
         lead = MemberLead(
             member_name=self.member_name,

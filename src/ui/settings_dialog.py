@@ -4,14 +4,17 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
     QMessageBox,
     QPushButton,
     QVBoxLayout,
 )
 
 from src.config.settings import (
+    _KEY_APARTMENT_COMPLEXES,
     _KEY_EXPENSE_DAILY_SHEET,
     _KEY_NATEON_WEBHOOK_URL,
     _KEY_PHONE_IP,
@@ -63,6 +66,30 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(form)
 
+        # 아파트 단지 목록 편집
+        layout.addWidget(QLabel("아파트 단지 목록 (신규 회원 거주지 선택에 사용)"))
+
+        self._apt_list = QListWidget()
+        self._apt_list.setFixedHeight(120)
+        layout.addWidget(self._apt_list)
+
+        apt_row = QHBoxLayout()
+        self._apt_input = QLineEdit()
+        self._apt_input.setPlaceholderText("단지명 입력 후 추가")
+        apt_row.addWidget(self._apt_input)
+
+        add_btn = QPushButton("추가")
+        add_btn.setFixedWidth(52)
+        add_btn.clicked.connect(self._add_apt)
+        apt_row.addWidget(add_btn)
+
+        del_btn = QPushButton("삭제")
+        del_btn.setFixedWidth(52)
+        del_btn.clicked.connect(self._del_apt)
+        apt_row.addWidget(del_btn)
+
+        layout.addLayout(apt_row)
+
         save_button = QPushButton("저장")
         save_button.clicked.connect(self._save)
         layout.addWidget(save_button)
@@ -84,6 +111,22 @@ class SettingsDialog(QDialog):
         self.expense_sheet_input.setText(settings.get(_KEY_EXPENSE_DAILY_SHEET, ""))
         self.phone_ip_input.setText(settings.get(_KEY_PHONE_IP, ""))
         self.nateon_webhook_input.setText(settings.get(_KEY_NATEON_WEBHOOK_URL, ""))
+        self._apt_list.clear()
+        for apt in settings.get(_KEY_APARTMENT_COMPLEXES, []):
+            self._apt_list.addItem(apt)
+
+    def _add_apt(self) -> None:
+        name = self._apt_input.text().strip()
+        if not name:
+            return
+        existing = [self._apt_list.item(i).text() for i in range(self._apt_list.count())]
+        if name not in existing:
+            self._apt_list.addItem(name)
+        self._apt_input.clear()
+
+    def _del_apt(self) -> None:
+        for item in self._apt_list.selectedItems():
+            self._apt_list.takeItem(self._apt_list.row(item))
 
     def _save(self) -> None:
         settings = load_settings()
@@ -91,6 +134,9 @@ class SettingsDialog(QDialog):
         settings[_KEY_EXPENSE_DAILY_SHEET] = self.expense_sheet_input.text().strip()
         settings[_KEY_PHONE_IP] = self.phone_ip_input.text().strip()
         settings[_KEY_NATEON_WEBHOOK_URL] = self.nateon_webhook_input.text().strip()
+        settings[_KEY_APARTMENT_COMPLEXES] = [
+            self._apt_list.item(i).text() for i in range(self._apt_list.count())
+        ]
         save_settings(settings)
         QMessageBox.information(self, "완료", "설정이 저장되었습니다.")
         self.accept()
