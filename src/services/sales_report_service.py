@@ -59,6 +59,17 @@ def build_sales_report_text(
 
 # ── 월 목표 카운트다운 ────────────────────────────────────────────────
 
+def read_daily_section_totals(daily_path: str | Path) -> dict[str, int]:
+    """데일리 파일에서 센터/레슨 매출 합계를 반환한다."""
+    from src.services.entry_reader_service import read_sales_entries
+    entries = read_sales_entries(daily_path)
+    return {
+        "center": sum(e.amount for e in entries if e.section == "센터"),
+        "pt": sum(e.amount for e in entries if e.section == "레슨"),
+    }
+
+
+
 # 총매출 파일 월 시트에서 센터/피티 금액 컬럼 (1-based)
 # 센터: 시작 B(2) → 이름 D(4), 금액 G(7)
 # 레슨: 시작 P(16) → 이름 R(18), 금액 U(21)

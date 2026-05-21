@@ -723,7 +723,10 @@ class MainWindow(QMainWindow):
         MembershipExpiryDialog(parent=self).exec()
 
     def _open_countdown(self) -> None:
-        CountdownDialog(parent=self).exec()
+        if not self._path_daily:
+            QMessageBox.warning(self, "파일 미등록", "데일리 파일을 먼저 등록해주세요.")
+            return
+        CountdownDialog(self._path_daily, parent=self).exec()
 
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()

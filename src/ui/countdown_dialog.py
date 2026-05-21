@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
-    QFormLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
     QTextEdit,
@@ -15,19 +12,19 @@ from PySide6.QtWidgets import (
 )
 
 from src.config.settings import get_monthly_targets
-from src.services.countdown_service import load_countdown, save_countdown
-from src.services.sales_report_service import build_countdown_text
+from src.services.sales_report_service import build_countdown_text, read_daily_section_totals
 
 
 class CountdownDialog(QDialog):
-    """월 목표 카운트다운 다이얼로그. 센터/피티 매출을 직접 입력하면 보고 문구를 생성한다."""
+    """월 목표 카운트다운 다이얼로그. 데일리 파일에서 센터/레슨 매출을 읽어 보고 문구를 생성한다."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, path_daily: str, parent=None) -> None:
         super().__init__(parent)
+        self._path_daily = path_daily
         self.setWindowTitle("월 목표 카운트다운")
-        self.setMinimumWidth(340)
+        self.setMinimumWidth(320)
         self._setup_ui()
-        self._load_last()
+        self._refresh()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout()
@@ -43,23 +40,6 @@ class CountdownDialog(QDialog):
         target_lbl.setStyleSheet("color: #6B7280; font-size: 11px;")
         layout.addWidget(target_lbl)
 
-        form = QFormLayout()
-        self._center_input = QLineEdit()
-        self._center_input.setPlaceholderText("예: 8500000")
-        self._center_input.textChanged.connect(self._update_preview)
-        form.addRow("센터 누적 매출 (원):", self._center_input)
-
-        self._pt_input = QLineEdit()
-        self._pt_input.setPlaceholderText("예: 7200000")
-        self._pt_input.textChanged.connect(self._update_preview)
-        form.addRow("피티 누적 매출 (원):", self._pt_input)
-        layout.addLayout(form)
-
-        self._last_lbl = QLabel()
-        self._last_lbl.setStyleSheet("color: #9CA3AF; font-size: 10px;")
-        self._last_lbl.setAlignment(Qt.AlignRight)
-        layout.addWidget(self._last_lbl)
-
         self._preview = QTextEdit()
         self._preview.setReadOnly(True)
         self._preview.setFixedHeight(160)
@@ -69,48 +49,31 @@ class CountdownDialog(QDialog):
         layout.addWidget(self._preview)
 
         btn_row = QHBoxLayout()
-        copy_btn = QPushButton("📋  복사하고 저장")
+        refresh_btn = QPushButton("↻  갱신")
+        refresh_btn.setFixedHeight(36)
+        refresh_btn.clicked.connect(self._refresh)
+        copy_btn = QPushButton("📋  복사")
         copy_btn.setFixedHeight(36)
-        copy_btn.clicked.connect(self._copy_and_save)
+        copy_btn.clicked.connect(self._copy)
+        btn_row.addWidget(refresh_btn)
         btn_row.addWidget(copy_btn)
         layout.addLayout(btn_row)
 
         self.setLayout(layout)
 
-    def _load_last(self) -> None:
-        data = load_countdown()
-        if data.get("center") is not None:
-            self._center_input.setText(str(data["center"]))
-        if data.get("pt") is not None:
-            self._pt_input.setText(str(data["pt"]))
-        if saved_date := data.get("date"):
-            self._last_lbl.setText(f"마지막 저장: {saved_date}")
-
-    def _parse_inputs(self) -> tuple[int, int] | None:
+    def _refresh(self) -> None:
         try:
-            center = int(self._center_input.text().replace(",", "").strip() or 0)
-            pt = int(self._pt_input.text().replace(",", "").strip() or 0)
-            return center, pt
-        except ValueError:
-            return None
+            totals = read_daily_section_totals(self._path_daily)
+            text = build_countdown_text(
+                totals["center"], totals["pt"],
+                self._center_target, self._pt_target,
+            )
+            self._preview.setPlainText(text)
+        except Exception as exc:
+            self._preview.setPlainText(f"오류: {exc}")
 
-    def _update_preview(self) -> None:
-        parsed = self._parse_inputs()
-        if parsed is None:
-            self._preview.setPlainText("숫자만 입력해주세요.")
-            return
-        center, pt = parsed
-        text = build_countdown_text(center, pt, self._center_target, self._pt_target)
-        self._preview.setPlainText(text)
-
-    def _copy_and_save(self) -> None:
-        parsed = self._parse_inputs()
-        if parsed is None:
-            QMessageBox.warning(self, "입력 오류", "숫자만 입력해주세요.")
-            return
-        center, pt = parsed
-        text = build_countdown_text(center, pt, self._center_target, self._pt_target)
-        QApplication.clipboard().setText(text)
-        save_countdown(center, pt)
-        self._load_last()
-        QMessageBox.information(self, "완료", "클립보드에 복사하고 저장했습니다.")
+    def _copy(self) -> None:
+        text = self._preview.toPlainText()
+        if text and not text.startswith("오류:"):
+            QApplication.clipboard().setText(text)
+            QMessageBox.information(self, "완료", "클립보드에 복사되었습니다.")
