@@ -723,10 +723,7 @@ class MainWindow(QMainWindow):
         MembershipExpiryDialog(parent=self).exec()
 
     def _open_countdown(self) -> None:
-        if not self._path_total:
-            QMessageBox.warning(self, "파일 미등록", "총매출 파일을 먼저 등록해주세요.")
-            return
-        CountdownDialog(self._path_total, parent=self).exec()
+        CountdownDialog(parent=self).exec()
 
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()
