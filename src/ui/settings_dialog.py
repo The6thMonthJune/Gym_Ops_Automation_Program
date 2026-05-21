@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
 from src.config.settings import (
     _KEY_APARTMENT_COMPLEXES,
     _KEY_EXPENSE_DAILY_SHEET,
+    _KEY_MONTHLY_TARGET_CENTER,
+    _KEY_MONTHLY_TARGET_PT,
     _KEY_NATEON_WEBHOOK_URL,
     _KEY_PHONE_IP,
     _KEY_TOTAL_SALES_PASSWORD,
@@ -64,6 +66,14 @@ class SettingsDialog(QDialog):
         self.nateon_webhook_input.setPlaceholderText("https://teamroom.nate.com/api/webhook/...")
         form.addRow("네이트온 웹훅 URL:", self.nateon_webhook_input)
 
+        self.target_center_input = QLineEdit()
+        self.target_center_input.setPlaceholderText("예: 10000000")
+        form.addRow("센터 월 목표금액 (원):", self.target_center_input)
+
+        self.target_pt_input = QLineEdit()
+        self.target_pt_input.setPlaceholderText("예: 10000000")
+        form.addRow("피티 월 목표금액 (원):", self.target_pt_input)
+
         layout.addLayout(form)
 
         # 아파트 단지 목록 편집
@@ -111,6 +121,8 @@ class SettingsDialog(QDialog):
         self.expense_sheet_input.setText(settings.get(_KEY_EXPENSE_DAILY_SHEET, ""))
         self.phone_ip_input.setText(settings.get(_KEY_PHONE_IP, ""))
         self.nateon_webhook_input.setText(settings.get(_KEY_NATEON_WEBHOOK_URL, ""))
+        self.target_center_input.setText(str(settings.get(_KEY_MONTHLY_TARGET_CENTER, "") or ""))
+        self.target_pt_input.setText(str(settings.get(_KEY_MONTHLY_TARGET_PT, "") or ""))
         self._apt_list.clear()
         for apt in settings.get(_KEY_APARTMENT_COMPLEXES, []):
             self._apt_list.addItem(apt)
@@ -134,6 +146,14 @@ class SettingsDialog(QDialog):
         settings[_KEY_EXPENSE_DAILY_SHEET] = self.expense_sheet_input.text().strip()
         settings[_KEY_PHONE_IP] = self.phone_ip_input.text().strip()
         settings[_KEY_NATEON_WEBHOOK_URL] = self.nateon_webhook_input.text().strip()
+        try:
+            settings[_KEY_MONTHLY_TARGET_CENTER] = int(self.target_center_input.text().strip() or 0)
+        except ValueError:
+            settings[_KEY_MONTHLY_TARGET_CENTER] = 0
+        try:
+            settings[_KEY_MONTHLY_TARGET_PT] = int(self.target_pt_input.text().strip() or 0)
+        except ValueError:
+            settings[_KEY_MONTHLY_TARGET_PT] = 0
         settings[_KEY_APARTMENT_COMPLEXES] = [
             self._apt_list.item(i).text() for i in range(self._apt_list.count())
         ]
