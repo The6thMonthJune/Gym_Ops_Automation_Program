@@ -88,8 +88,9 @@ class CountdownDialog(QDialog):
             self._baseline_pt = baseline_pt
 
             text = build_countdown_text(
-                running_center, running_pt,
+                daily["center"], daily["pt"],
                 self._center_target, self._pt_target,
+                running_center, running_pt,
             )
             self._preview.setPlainText(text)
 

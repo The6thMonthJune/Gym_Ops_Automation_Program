@@ -109,18 +109,20 @@ def read_monthly_totals_by_section(
 
 
 def build_countdown_text(
-    center_sales: int,
-    pt_sales: int,
+    today_center: int,
+    today_pt: int,
     center_target: int,
     pt_target: int,
+    running_center: int,
+    running_pt: int,
 ) -> str:
-    total = center_sales + pt_sales
+    today_total = today_center + today_pt
     return "\n".join([
-        f"센터: {format_currency(center_sales)}",
-        f"피티: {format_currency(pt_sales)}",
-        f"총합: {format_currency(total)}",
+        f"센터: {format_currency(today_center)}",
+        f"피티: {format_currency(today_pt)}",
+        f"총합: {format_currency(today_total)}",
         "",
         "목표까지 앞으로",
-        f"센터: {format_currency(center_target - center_sales)}",
-        f"피티: {format_currency(pt_target - pt_sales)}",
+        f"센터: {format_currency(center_target - running_center)}",
+        f"피티: {format_currency(pt_target - running_pt)}",
     ])
