@@ -3,13 +3,13 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from PySide6.QtCharts import (
+    QBarCategoryAxis,
     QChart,
     QChartView,
-    QDateTimeAxis,
     QLineSeries,
     QValueAxis,
 )
-from PySide6.QtCore import QDateTime, QMargins, Qt, QTimer
+from PySide6.QtCore import QMargins, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QApplication,
@@ -237,8 +237,12 @@ class TrendDialog(QDialog):
         chart.setMargins(QMargins(4, 4, 4, 4))
         chart.setBackgroundRoundness(8)
 
+        # 날짜 순서대로 정렬된 고유 날짜 목록 → 카테고리 인덱스로 사용
+        dates = sorted({date.fromisoformat(s["date"]) for s in snaps})
+        date_to_idx = {d: float(i) for i, d in enumerate(dates)}
+        categories = [f"{d.month}/{d.day}" for d in dates]
+
         all_series: list[QLineSeries] = []
-        min_dt = max_dt = None
         min_val = float("inf")
         max_val = float("-inf")
 
@@ -262,26 +266,19 @@ class TrendDialog(QDialog):
             for snap in snaps:
                 d = date.fromisoformat(snap["date"])
                 val = _snap_val(snap, key)
-                ms = QDateTime(d.year, d.month, d.day, 12, 0, 0).toMSecsSinceEpoch()
-                series.append(ms, val)
-
-                if min_dt is None or d < min_dt:
-                    min_dt = d
-                if max_dt is None or d > max_dt:
-                    max_dt = d
+                series.append(date_to_idx[d], val)
                 min_val = min(min_val, val)
                 max_val = max(max_val, val)
 
             chart.addSeries(series)
             all_series.append(series)
 
-        # X축 (날짜)
-        axis_x = QDateTimeAxis()
-        axis_x.setFormat("M/d")
+        # X축 — 각 데이터 포인트에 정확히 하나의 날짜 레이블
+        axis_x = QBarCategoryAxis()
+        axis_x.append(categories)
         axis_x.setLabelsFont(self.font())
-        min_qdt = QDateTime(min_dt.year, min_dt.month, min_dt.day, 0, 0, 0)
-        max_qdt = QDateTime(max_dt.year, max_dt.month, max_dt.day, 23, 59, 59)
-        axis_x.setRange(min_qdt, max_qdt)
+        if len(categories) > 10:
+            axis_x.setLabelsAngle(-45)
         chart.addAxis(axis_x, Qt.AlignBottom)
 
         # Y축 (회원 수)
