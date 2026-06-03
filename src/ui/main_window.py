@@ -24,7 +24,10 @@ from src.core.file_naming import extract_date_from_filename
 from src.services.daily_file_service import create_next_daily_file
 from src.services.sales_report_service import build_sales_report_text, read_sales_values
 from src.ui.countdown_dialog import CountdownDialog
-from src.services.locker_service import count_by_state, load_records, merge_records, save_records
+from src.services.locker_service import (
+    count_by_state, find_newly_expired, load_expiry_snapshot,
+    load_records, merge_records, save_expiry_snapshot, save_records,
+)
 from src.ui.trend_dialog import TrendDialog
 from src.services.broj_service import parse_xls
 from src.services.snapshot_service import save_snapshot
@@ -40,14 +43,73 @@ from src.config.settings import (
     save_settings,
 )
 from src.services.nateon_service import send_webhook
-from src.services.schedule_service import SalesReportScheduler
+from src.services.schedule_service import HolidayNotificationScheduler, SalesReportScheduler
 
 _NAVY = "#1E2D3D"
 _WHITE = "#FFFFFF"
 _BG = "#F3F4F6"
 
 APP_QSS = """
-QWidget { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; }
+QWidget {
+    font-family: "Malgun Gothic", "맑은 고딕", sans-serif;
+    color: #111827;
+}
+QDialog {
+    background-color: #ffffff;
+}
+QLabel {
+    color: #111827;
+    background-color: transparent;
+}
+QCheckBox {
+    color: #111827;
+    background-color: transparent;
+}
+QLineEdit {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #D1D5DB;
+    border-radius: 4px;
+    padding: 2px 6px;
+    selection-background-color: #3B82F6;
+    selection-color: #ffffff;
+}
+QTextEdit {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #D1D5DB;
+    border-radius: 4px;
+}
+QListWidget {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #D1D5DB;
+    border-radius: 4px;
+}
+QTableWidget {
+    background-color: #ffffff;
+    color: #111827;
+    gridline-color: #E5E7EB;
+}
+QHeaderView::section {
+    background-color: #F3F4F6;
+    color: #374151;
+    border: none;
+    border-bottom: 1px solid #D1D5DB;
+    padding: 4px 8px;
+    font-weight: 600;
+}
+QScrollBar:vertical {
+    background: #F3F4F6;
+    width: 8px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical {
+    background: #D1D5DB;
+    border-radius: 4px;
+    min-height: 20px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 QPushButton { outline: none; }
 """
 
@@ -195,6 +257,10 @@ class MainWindow(QMainWindow):
         self._scheduler.send_triggered.connect(self._auto_send_sales_report)
         self._scheduler.start()
         self._refresh_auto_send_status()
+
+        self._holiday_scheduler = HolidayNotificationScheduler(self)
+        self._holiday_scheduler.triggered.connect(self._prompt_holiday_notification)
+        self._holiday_scheduler.start()
 
     # ── UI 구성 ───────────────────────────────────────────────────
 
@@ -426,6 +492,18 @@ class MainWindow(QMainWindow):
         countdown_btn.clicked.connect(self._open_countdown)
         lay.addWidget(countdown_btn)
 
+        locker_sms_btn = QPushButton("📱  만료 락카 문자 발송")
+        locker_sms_btn.setFixedHeight(36)
+        locker_sms_btn.setStyleSheet(_slim_style)
+        locker_sms_btn.clicked.connect(self._open_locker_sms)
+        lay.addWidget(locker_sms_btn)
+
+        foreign_btn = QPushButton("🌍  외국인 회원 관리")
+        foreign_btn.setFixedHeight(36)
+        foreign_btn.setStyleSheet(_slim_style)
+        foreign_btn.clicked.connect(self._open_foreign_member)
+        lay.addWidget(foreign_btn)
+
         widget.setLayout(lay)
         return widget
 
@@ -632,11 +710,18 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
+            old_snapshot = load_expiry_snapshot()
+
             records = parse_xls(path, delete_after=True)
             merged = merge_records(load_records(), records)
             save_records(merged)
             counts = count_by_state(merged)
             save_snapshot(date.today(), counts)
+            save_expiry_snapshot(merged)
+
+            from src.services.foreign_member_service import sync_from_locker_records
+            sync_from_locker_records(merged)
+
             total = sum(counts.values())
             QMessageBox.information(
                 self, "완료",
@@ -645,6 +730,11 @@ class MainWindow(QMainWindow):
                 f"활성 {counts['active']} · 만료 {counts['expired']} · "
                 f"임박 {counts['imminent']} · 홀딩 {counts['holding']} · 미등록 {counts['unassigned']}",
             )
+
+            newly_expired = find_newly_expired(old_snapshot, merged)
+            if newly_expired:
+                self._prompt_newly_expired_locker(newly_expired)
+
         except Exception as exc:
             QMessageBox.critical(self, "오류", f"파일 파싱 실패:\n{exc}")
 
@@ -727,6 +817,35 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "파일 미등록", "데일리 파일을 먼저 등록해주세요.")
             return
         CountdownDialog(self._path_daily, parent=self).exec()
+
+    def _open_locker_sms(self) -> None:
+        from src.ui.locker_sms_dialog import LockerSmsDialog
+        LockerSmsDialog(parent=self).exec()
+
+    def _prompt_newly_expired_locker(self, newly_expired) -> None:
+        names = ", ".join(r.member_name for r in newly_expired[:5])
+        if len(newly_expired) > 5:
+            names += f" 외 {len(newly_expired) - 5}명"
+        reply = QMessageBox.question(
+            self,
+            "신규 락카 만료자 발생",
+            f"새로 락카가 만료된 회원이 {len(newly_expired)}명 있습니다.\n"
+            f"({names})\n\n"
+            "지금 안내 문자를 발송하시겠습니까?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            from src.ui.locker_sms_dialog import LockerSmsDialog
+            LockerSmsDialog(parent=self).exec()
+
+    def _open_foreign_member(self) -> None:
+        from src.ui.foreign_member_dialog import ForeignMemberDialog
+        ForeignMemberDialog(parent=self).exec()
+
+    def _prompt_holiday_notification(self) -> None:
+        from src.ui.holiday_notification_dialog import HolidayNotificationDialog
+        today = date.today()
+        HolidayNotificationDialog(today.year, today.month, parent=self).exec()
 
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()
