@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from src.config.settings import get_phone_ip, get_sms_gateway_credentials, get_sms_test_phone
 from src.services.holiday_notification_service import (
-    get_active_phone_numbers,
+    get_active_foreign_phones,
     mark_handled,
 )
 from src.services.holiday_service import (
@@ -220,9 +220,12 @@ class HolidayNotificationDialog(QDialog):
             QMessageBox.warning(self, "설정 오류", "설정에서 센터폰 IP를 먼저 등록해주세요.")
             return
 
-        phones = get_active_phone_numbers()
+        phones = get_active_foreign_phones()
         if not phones:
-            QMessageBox.warning(self, "회원 없음", "전화번호가 등록된 활성 회원이 없습니다.")
+            QMessageBox.warning(
+                self, "외국인 회원 없음",
+                "등록된 활성 외국인 회원이 없습니다.\n'외국인 회원 관리'에서 먼저 등록해주세요."
+            )
             return
 
         sms_text = build_sms_text(holidays)
@@ -231,7 +234,7 @@ class HolidayNotificationDialog(QDialog):
         reply = QMessageBox.question(
             self,
             "발송 확인",
-            f"활성 회원 {len(phones)}명에게 문자를 발송합니다.\n계속하시겠습니까?",
+            f"외국인 회원 {len(phones)}명에게 문자를 발송합니다.\n계속하시겠습니까?",
             QMessageBox.Yes | QMessageBox.No,
         )
         if reply != QMessageBox.Yes:

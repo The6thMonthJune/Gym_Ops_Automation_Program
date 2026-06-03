@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date
 from pathlib import Path
-
-from src.services.locker_service import _compute_membership_state, load_records
 
 _DATA_DIR = Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드자동화"
 _NOTIF_FILE = _DATA_DIR / "holiday_notification.json"
@@ -38,23 +35,13 @@ def mark_handled(year: int, month: int) -> None:
 
 
 def is_handled(year: int, month: int) -> bool:
-    state = load_notification_state()
     key = f"{year}-{month:02d}"
-    return key in state.get("handled_months", [])
+    return key in load_notification_state().get("handled_months", [])
 
 
-# ── 활성 회원 전화번호 ─────────────────────────────────────────────────────────
+# ── 수신자 ────────────────────────────────────────────────────────────────────
 
-def get_active_phone_numbers() -> list[str]:
-    """
-    활성(active) + 임박(imminent) 회원의 전화번호 목록을 반환한다.
-    전화번호가 없는 회원은 제외한다.
-    """
-    records = load_records()
-    phones: set[str] = set()
-    for r in records:
-        if _compute_membership_state(r) not in ("active", "imminent"):
-            continue
-        if r.phone_number:
-            phones.add(r.phone_number)
-    return list(phones)
+def get_active_foreign_phones() -> list[str]:
+    """활성/임박 외국인 회원의 전화번호 목록을 반환한다."""
+    from src.services.foreign_member_service import get_active_foreign_members
+    return [m.phone_number for m in get_active_foreign_members() if m.phone_number]

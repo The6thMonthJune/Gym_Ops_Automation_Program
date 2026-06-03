@@ -436,6 +436,12 @@ class MainWindow(QMainWindow):
         locker_sms_btn.clicked.connect(self._open_locker_sms)
         lay.addWidget(locker_sms_btn)
 
+        foreign_btn = QPushButton("🌍  외국인 회원 관리")
+        foreign_btn.setFixedHeight(36)
+        foreign_btn.setStyleSheet(_slim_style)
+        foreign_btn.clicked.connect(self._open_foreign_member)
+        lay.addWidget(foreign_btn)
+
         widget.setLayout(lay)
         return widget
 
@@ -647,6 +653,9 @@ class MainWindow(QMainWindow):
             save_records(merged)
             counts = count_by_state(merged)
             save_snapshot(date.today(), counts)
+
+            from src.services.foreign_member_service import sync_from_locker_records
+            sync_from_locker_records(merged)
             total = sum(counts.values())
             QMessageBox.information(
                 self, "완료",
@@ -741,6 +750,10 @@ class MainWindow(QMainWindow):
     def _open_locker_sms(self) -> None:
         from src.ui.locker_sms_dialog import LockerSmsDialog
         LockerSmsDialog(parent=self).exec()
+
+    def _open_foreign_member(self) -> None:
+        from src.ui.foreign_member_dialog import ForeignMemberDialog
+        ForeignMemberDialog(parent=self).exec()
 
     def _prompt_holiday_notification(self) -> None:
         from src.ui.holiday_notification_dialog import HolidayNotificationDialog
