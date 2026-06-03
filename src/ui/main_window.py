@@ -40,7 +40,7 @@ from src.config.settings import (
     save_settings,
 )
 from src.services.nateon_service import send_webhook
-from src.services.schedule_service import SalesReportScheduler
+from src.services.schedule_service import HolidayNotificationScheduler, SalesReportScheduler
 
 _NAVY = "#1E2D3D"
 _WHITE = "#FFFFFF"
@@ -195,6 +195,10 @@ class MainWindow(QMainWindow):
         self._scheduler.send_triggered.connect(self._auto_send_sales_report)
         self._scheduler.start()
         self._refresh_auto_send_status()
+
+        self._holiday_scheduler = HolidayNotificationScheduler(self)
+        self._holiday_scheduler.triggered.connect(self._prompt_holiday_notification)
+        self._holiday_scheduler.start()
 
     # ── UI 구성 ───────────────────────────────────────────────────
 
@@ -425,6 +429,12 @@ class MainWindow(QMainWindow):
         countdown_btn.setStyleSheet(_slim_style)
         countdown_btn.clicked.connect(self._open_countdown)
         lay.addWidget(countdown_btn)
+
+        locker_sms_btn = QPushButton("📱  만료 락카 문자 발송")
+        locker_sms_btn.setFixedHeight(36)
+        locker_sms_btn.setStyleSheet(_slim_style)
+        locker_sms_btn.clicked.connect(self._open_locker_sms)
+        lay.addWidget(locker_sms_btn)
 
         widget.setLayout(lay)
         return widget
@@ -727,6 +737,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "파일 미등록", "데일리 파일을 먼저 등록해주세요.")
             return
         CountdownDialog(self._path_daily, parent=self).exec()
+
+    def _open_locker_sms(self) -> None:
+        from src.ui.locker_sms_dialog import LockerSmsDialog
+        LockerSmsDialog(parent=self).exec()
+
+    def _prompt_holiday_notification(self) -> None:
+        from src.ui.holiday_notification_dialog import HolidayNotificationDialog
+        today = date.today()
+        HolidayNotificationDialog(today.year, today.month, parent=self).exec()
 
     def _open_settings(self) -> None:
         SettingsDialog(parent=self).exec()

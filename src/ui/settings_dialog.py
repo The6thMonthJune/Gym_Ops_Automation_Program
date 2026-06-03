@@ -20,6 +20,10 @@ from src.config.settings import (
     _KEY_MONTHLY_TARGET_PT,
     _KEY_NATEON_WEBHOOK_URL,
     _KEY_PHONE_IP,
+    _KEY_SMS_GATEWAY_PASSWORD,
+    _KEY_SMS_GATEWAY_PORT,
+    _KEY_SMS_GATEWAY_USERNAME,
+    _KEY_SMS_TEST_PHONE,
     _KEY_TOTAL_SALES_PASSWORD,
     load_settings,
     save_settings,
@@ -74,6 +78,23 @@ class SettingsDialog(QDialog):
         self.target_pt_input.setPlaceholderText("예: 10000000")
         form.addRow("피티 월 목표금액 (원):", self.target_pt_input)
 
+        self.sms_port_input = QLineEdit()
+        self.sms_port_input.setPlaceholderText("기본값: 8080")
+        form.addRow("SMS Gateway 포트:", self.sms_port_input)
+
+        self.sms_username_input = QLineEdit()
+        self.sms_username_input.setPlaceholderText("기본값: user")
+        form.addRow("SMS Gateway 사용자명:", self.sms_username_input)
+
+        self.sms_password_input = QLineEdit()
+        self.sms_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.sms_password_input.setPlaceholderText("기본값: password")
+        form.addRow("SMS Gateway 비밀번호:", self.sms_password_input)
+
+        self.sms_test_phone_input = QLineEdit()
+        self.sms_test_phone_input.setPlaceholderText("예: 01012345678  (테스트 발송 전용)")
+        form.addRow("SMS 테스트 번호:", self.sms_test_phone_input)
+
         layout.addLayout(form)
 
         # 아파트 단지 목록 편집
@@ -123,6 +144,10 @@ class SettingsDialog(QDialog):
         self.nateon_webhook_input.setText(settings.get(_KEY_NATEON_WEBHOOK_URL, ""))
         self.target_center_input.setText(str(settings.get(_KEY_MONTHLY_TARGET_CENTER, "") or ""))
         self.target_pt_input.setText(str(settings.get(_KEY_MONTHLY_TARGET_PT, "") or ""))
+        self.sms_port_input.setText(str(settings.get(_KEY_SMS_GATEWAY_PORT, "") or ""))
+        self.sms_username_input.setText(settings.get(_KEY_SMS_GATEWAY_USERNAME, ""))
+        self.sms_password_input.setText(settings.get(_KEY_SMS_GATEWAY_PASSWORD, ""))
+        self.sms_test_phone_input.setText(settings.get(_KEY_SMS_TEST_PHONE, ""))
         self._apt_list.clear()
         for apt in settings.get(_KEY_APARTMENT_COMPLEXES, []):
             self._apt_list.addItem(apt)
@@ -154,6 +179,13 @@ class SettingsDialog(QDialog):
             settings[_KEY_MONTHLY_TARGET_PT] = int(self.target_pt_input.text().strip() or 0)
         except ValueError:
             settings[_KEY_MONTHLY_TARGET_PT] = 0
+        try:
+            settings[_KEY_SMS_GATEWAY_PORT] = int(self.sms_port_input.text().strip() or 8080)
+        except ValueError:
+            settings[_KEY_SMS_GATEWAY_PORT] = 8080
+        settings[_KEY_SMS_GATEWAY_USERNAME] = self.sms_username_input.text().strip()
+        settings[_KEY_SMS_GATEWAY_PASSWORD] = self.sms_password_input.text()
+        settings[_KEY_SMS_TEST_PHONE] = self.sms_test_phone_input.text().strip()
         settings[_KEY_APARTMENT_COMPLEXES] = [
             self._apt_list.item(i).text() for i in range(self._apt_list.count())
         ]

@@ -18,6 +18,10 @@ _KEY_NATEON_WEBHOOK_URL = "nateon_webhook_url"
 _KEY_APARTMENT_COMPLEXES = "apartment_complexes"
 _KEY_MONTHLY_TARGET_CENTER = "monthly_target_center"
 _KEY_MONTHLY_TARGET_PT = "monthly_target_pt"
+_KEY_SMS_GATEWAY_PORT = "sms_gateway_port"
+_KEY_SMS_GATEWAY_USERNAME = "sms_gateway_username"
+_KEY_SMS_GATEWAY_PASSWORD = "sms_gateway_password"
+_KEY_SMS_TEST_PHONE = "sms_test_phone"
 
 
 def load_settings() -> dict:
@@ -57,6 +61,20 @@ def get_expense_daily_sheet() -> str:
 def get_apartment_complexes() -> list[str]:
     """설정에 저장된 아파트 단지 목록을 반환한다. 미설정 시 빈 리스트."""
     return load_settings().get(_KEY_APARTMENT_COMPLEXES, []) or []
+
+
+def get_sms_test_phone() -> str:
+    return load_settings().get(_KEY_SMS_TEST_PHONE, "") or ""
+
+
+def get_sms_gateway_credentials() -> tuple[int, str, str]:
+    """(포트, 사용자명, 비밀번호) 반환. 미설정 시 기본값."""
+    s = load_settings()
+    return (
+        int(s.get(_KEY_SMS_GATEWAY_PORT) or 8080),
+        s.get(_KEY_SMS_GATEWAY_USERNAME) or "user",
+        s.get(_KEY_SMS_GATEWAY_PASSWORD) or "password",
+    )
 
 
 def get_monthly_targets() -> tuple[int, int]:

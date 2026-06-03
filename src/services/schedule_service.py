@@ -28,6 +28,47 @@ def get_send_time(d: date) -> tuple[int, int]:
     return HOLIDAY_SEND_TIME if _is_holiday(d) else WEEKDAY_SEND_TIME
 
 
+class HolidayNotificationScheduler(QObject):
+    """매월 1일 오전 10시에 공휴일 SMS 발송 다이얼로그 표시를 트리거하는 스케줄러."""
+
+    triggered = Signal()  # (year, month) 대신 signal만 발생, 수신측이 date.today() 참조
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._last_triggered_month: str | None = None
+
+        self._timer = QTimer(self)
+        self._timer.setInterval(30_000)
+        self._timer.timeout.connect(self._check)
+
+    def start(self) -> None:
+        self._timer.start()
+
+    def stop(self) -> None:
+        self._timer.stop()
+
+    def _check(self) -> None:
+        from src.services.holiday_notification_service import is_handled
+
+        now = datetime.now()
+        today = now.date()
+
+        if today.day != 1:
+            return
+
+        month_key = today.strftime("%Y-%m")
+        if self._last_triggered_month == month_key:
+            return
+        if is_handled(today.year, today.month):
+            self._last_triggered_month = month_key
+            return
+
+        # 매월 1일 오전 10시 이후 트리거
+        if now.hour >= 10:
+            self._last_triggered_month = month_key
+            self.triggered.emit()
+
+
 class SalesReportScheduler(QObject):
     """매일 지정 시각에 매출 보고 자동 전송을 트리거하는 스케줄러."""
 
