@@ -15,10 +15,18 @@ from PySide6.QtWidgets import (
 )
 
 from src.config.settings import get_phone_ip, get_sms_gateway_credentials, get_sms_test_phone
+from src.services.foreign_member_service import load_foreign_members
 from src.services.locker_service import get_expired_by_category, load_records
 from src.services.sms_gateway_service import send_bulk_sms
 
-_MSG_TEMPLATE = (
+_MSG_KO = (
+    "[리와인드 휘트니스]\n"
+    "{name}님, 안녕하세요!\n"
+    "락카 이용 기간이 만료되었습니다.\n"
+    "재계약을 원하시면 센터로 문의해주세요 😊"
+)
+
+_MSG_BILINGUAL = (
     "[Rewind Fitness]\n"
     "Hi {name}!\n"
     "Your locker rental period has expired.\n"
@@ -29,8 +37,9 @@ _MSG_TEMPLATE = (
 )
 
 
-def _build_message(name: str) -> str:
-    return _MSG_TEMPLATE.format(name=name)
+def _build_message(name: str, is_foreign: bool) -> str:
+    template = _MSG_BILINGUAL if is_foreign else _MSG_KO
+    return template.format(name=name)
 
 
 class LockerSmsDialog(QDialog):
@@ -40,7 +49,10 @@ class LockerSmsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("만료 락카 회원 문자 발송")
         self.setMinimumWidth(440)
-        self._checkboxes: list[tuple[QCheckBox, str, str]] = []  # (checkbox, name, phone)
+        self._checkboxes: list[tuple[QCheckBox, str, str, bool]] = []  # (checkbox, name, phone, is_foreign)
+        self._foreign_phones: set[str] = {
+            m.phone_number for m in load_foreign_members() if m.phone_number
+        }
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -77,9 +89,11 @@ class LockerSmsDialog(QDialog):
                     continue
                 expiry = r.locker_expiry or r.expiry_date
                 expiry_str = expiry.strftime("%Y.%m.%d") if expiry else "만료일 미상"
-                cb = QCheckBox(f"{r.member_name}  |  만료: {expiry_str}  |  {r.phone_number}")
+                is_foreign = r.phone_number in self._foreign_phones
+                tag = " 🌍" if is_foreign else ""
+                cb = QCheckBox(f"{r.member_name}{tag}  |  만료: {expiry_str}  |  {r.phone_number}")
                 cb.setChecked(True)
-                self._checkboxes.append((cb, r.member_name, r.phone_number))
+                self._checkboxes.append((cb, r.member_name, r.phone_number, is_foreign))
                 list_layout.addWidget(cb)
 
         _add_section("🔑 락카만 만료 (회원권 유효)", locker_only)
@@ -113,7 +127,10 @@ class LockerSmsDialog(QDialog):
         preview = QTextEdit()
         preview.setReadOnly(True)
         preview.setFixedHeight(140)
-        preview.setPlainText(_build_message("John"))
+        preview.setPlainText(
+            "[ 한국인 회원 ]\n" + _build_message("홍길동", False) +
+            "\n\n[ 외국인 회원 🌍 ]\n" + _build_message("John", True)
+        )
         preview.setStyleSheet("font-size: 12px; font-family: 'Malgun Gothic', sans-serif;")
         layout.addWidget(preview)
 
@@ -140,11 +157,15 @@ class LockerSmsDialog(QDialog):
         self.setLayout(layout)
 
     def _set_all(self, checked: bool) -> None:
-        for cb, _, _ in self._checkboxes:
+        for cb, *_ in self._checkboxes:
             cb.setChecked(checked)
 
-    def _selected(self) -> list[tuple[str, str]]:
-        return [(name, phone) for cb, name, phone in self._checkboxes if cb.isChecked()]
+    def _selected(self) -> list[tuple[str, str, bool]]:
+        return [
+            (name, phone, is_foreign)
+            for cb, name, phone, is_foreign in self._checkboxes
+            if cb.isChecked()
+        ]
 
     def _get_connection(self) -> tuple[str, int, str, str] | None:
         phone_ip = get_phone_ip()
@@ -164,7 +185,7 @@ class LockerSmsDialog(QDialog):
             return
         phone_ip, port, username, password = conn
         try:
-            send_bulk_sms(phone_ip, [test_phone], _build_message("Test"), port, username, password)
+            send_bulk_sms(phone_ip, [test_phone], _build_message("Test", True), port, username, password)
             QMessageBox.information(self, "완료", f"{test_phone}으로 테스트 문자를 발송했습니다.")
         except Exception as exc:
             QMessageBox.critical(self, "발송 실패", str(exc))
@@ -188,9 +209,9 @@ class LockerSmsDialog(QDialog):
             return
 
         failed: list[str] = []
-        for name, phone in selected:
+        for name, phone, is_foreign in selected:
             try:
-                send_bulk_sms(phone_ip, [phone], _build_message(name), port, username, password)
+                send_bulk_sms(phone_ip, [phone], _build_message(name, is_foreign), port, username, password)
             except Exception:
                 failed.append(name)
 

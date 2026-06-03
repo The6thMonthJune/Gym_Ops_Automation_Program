@@ -194,6 +194,45 @@ def get_locker_json_path() -> Path:
     return _LOCKER_JSON
 
 
+# ── 락카 만료 스냅샷 (신규 만료자 자동 탐지용) ──────────────────────────────────
+
+_EXPIRY_SNAPSHOT_FILE = _DATA_DIR / "locker_expiry_snapshot.json"
+
+
+def load_expiry_snapshot() -> set[str]:
+    """직전 DB 업데이트 시점의 락카 만료 전화번호 집합을 반환한다."""
+    if not _EXPIRY_SNAPSHOT_FILE.exists():
+        return set()
+    try:
+        data = json.loads(_EXPIRY_SNAPSHOT_FILE.read_text(encoding="utf-8"))
+        return set(data.get("expired_phones", []))
+    except Exception:
+        return set()
+
+
+def save_expiry_snapshot(records: list[LockerRecord]) -> None:
+    """현재 레코드 기준 락카 만료 전화번호 집합을 저장한다."""
+    expired = {r.phone_number for r in records if r.phone_number and _compute_state(r) == "expired"}
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    _EXPIRY_SNAPSHOT_FILE.write_text(
+        json.dumps({"expired_phones": list(expired)}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def find_newly_expired(
+    old_snapshot: set[str],
+    new_records: list[LockerRecord],
+) -> list[LockerRecord]:
+    """이번 업데이트에서 새로 만료된 락카 회원(전화번호 있는)만 반환한다."""
+    return [
+        r for r in new_records
+        if r.phone_number
+        and _compute_state(r) == "expired"
+        and r.phone_number not in old_snapshot
+    ]
+
+
 def count_by_state(records: list[LockerRecord]) -> dict[str, int]:
     """상태별 회원 수를 반환한다."""
     counts = {"active": 0, "expired": 0, "scheduled": 0, "imminent": 0, "holding": 0, "unassigned": 0}
