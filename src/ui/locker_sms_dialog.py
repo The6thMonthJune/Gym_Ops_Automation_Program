@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.config.settings import get_phone_ip, get_sms_gateway_credentials, get_sms_test_phone
-from src.services.foreign_member_service import get_expired_locker_foreign_members
+from src.services.locker_service import get_expired_by_category, load_records
 from src.services.sms_gateway_service import send_bulk_sms
 
 _MSG_TEMPLATE = (
@@ -38,7 +38,7 @@ class LockerSmsDialog(QDialog):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("외국인 만료 락카 문자 발송")
+        self.setWindowTitle("만료 락카 회원 문자 발송")
         self.setMinimumWidth(440)
         self._checkboxes: list[tuple[QCheckBox, str, str]] = []  # (checkbox, name, phone)
         self._setup_ui()
@@ -47,31 +47,46 @@ class LockerSmsDialog(QDialog):
         layout = QVBoxLayout()
         layout.setSpacing(10)
 
-        guide = QLabel("락카 이용 기간이 만료된 외국인 회원 목록입니다.")
+        guide = QLabel("락카 이용 기간이 만료된 회원 목록입니다.")
         guide.setStyleSheet("color: #6B7280; font-size: 11px;")
         layout.addWidget(guide)
 
         # 회원 목록 (스크롤)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setFixedHeight(180)
+        scroll.setFixedHeight(220)
         container = QWidget()
         list_layout = QVBoxLayout()
         list_layout.setSpacing(4)
         list_layout.setContentsMargins(4, 4, 4, 4)
 
-        members = get_expired_locker_foreign_members()
-        for m in members:
-            expiry_str = m.locker_expiry.strftime("%Y.%m.%d") if m.locker_expiry else (
-                m.expiry_date.strftime("%Y.%m.%d") if m.expiry_date else "만료일 미상"
+        records = load_records()
+        locker_only, both_expired = get_expired_by_category(records)
+
+        def _add_section(title: str, members):
+            if not members:
+                return
+            header = QLabel(title)
+            header.setStyleSheet(
+                "color: #374151; font-size: 11px; font-weight: 600; "
+                "background: #F3F4F6; padding: 3px 6px; border-radius: 4px;"
             )
-            cb = QCheckBox(f"{m.name}  |  만료: {expiry_str}  |  {m.phone_number}")
-            cb.setChecked(True)
-            self._checkboxes.append((cb, m.name, m.phone_number))
-            list_layout.addWidget(cb)
+            list_layout.addWidget(header)
+            for r in members:
+                if not r.phone_number:
+                    continue
+                expiry = r.locker_expiry or r.expiry_date
+                expiry_str = expiry.strftime("%Y.%m.%d") if expiry else "만료일 미상"
+                cb = QCheckBox(f"{r.member_name}  |  만료: {expiry_str}  |  {r.phone_number}")
+                cb.setChecked(True)
+                self._checkboxes.append((cb, r.member_name, r.phone_number))
+                list_layout.addWidget(cb)
+
+        _add_section("🔑 락카만 만료 (회원권 유효)", locker_only)
+        _add_section("🔒 락카 + 회원권 모두 만료", both_expired)
 
         if not self._checkboxes:
-            empty = QLabel("락카가 만료된 외국인 회원이 없습니다.")
+            empty = QLabel("전화번호가 등록된 만료 락카 회원이 없습니다.")
             empty.setStyleSheet("color: #9CA3AF;")
             list_layout.addWidget(empty)
 
