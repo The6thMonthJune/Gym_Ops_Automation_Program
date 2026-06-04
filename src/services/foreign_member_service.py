@@ -64,13 +64,15 @@ def save_foreign_members(members: list[ForeignMember]) -> None:
 
 def add_foreign_member(name: str, phone_number: str) -> None:
     """외국인 회원을 추가한다. 같은 전화번호가 이미 있으면 이름만 갱신한다."""
+    import re
+    normalized = re.sub(r"\D", "", phone_number)  # 숫자만 추출 — locker_data와 형식 통일
     members = load_foreign_members()
     for m in members:
-        if m.phone_number == phone_number:
+        if m.phone_number == normalized:
             m.name = name
             save_foreign_members(members)
             return
-    members.append(ForeignMember(name=name, phone_number=phone_number))
+    members.append(ForeignMember(name=name, phone_number=normalized))
     save_foreign_members(members)
 
 
