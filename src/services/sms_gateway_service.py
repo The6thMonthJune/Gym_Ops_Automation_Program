@@ -31,15 +31,15 @@ def send_bulk_sms(
     android-sms-gateway 앱 REST API로 대량 SMS를 발송한다.
     실패 시 RuntimeError를 발생시킨다.
 
-    API: POST http://<phone_ip>:<port>/v1/message
+    API: POST http://<phone_ip>:<port>/message
     """
     if not phone_numbers:
         raise ValueError("수신자 번호가 없습니다.")
 
     numbers_intl = [_to_international(p) for p in phone_numbers]
-    url = f"http://{phone_ip}:{port}/v1/message"
+    url = f"http://{phone_ip}:{port}/message"
     payload = json.dumps({
-        "message": message,
+        "textMessage": {"text": message},
         "phoneNumbers": numbers_intl,
     }, ensure_ascii=False).encode("utf-8")
 
@@ -69,10 +69,10 @@ def is_reachable(
 ) -> bool:
     try:
         credentials = b64encode(f"{username}:{password}".encode()).decode()
-        url = f"http://{phone_ip}:{port}/v1/message"
+        url = f"http://{phone_ip}:{port}/message"
         req = urllib.request.Request(
             url,
-            data=b'{"message":"ping","phoneNumbers":[]}',
+            data=b'{"textMessage":{"text":"ping"},"phoneNumbers":[]}',
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Basic {credentials}",
