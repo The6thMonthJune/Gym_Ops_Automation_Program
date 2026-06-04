@@ -199,15 +199,20 @@ def get_locker_json_path() -> Path:
 _EXPIRY_SNAPSHOT_FILE = _DATA_DIR / "locker_expiry_snapshot.json"
 
 
-def load_expiry_snapshot() -> set[str]:
-    """직전 DB 업데이트 시점의 락카 만료 전화번호 집합을 반환한다."""
+def load_expiry_snapshot() -> tuple[set[str], bool]:
+    """직전 DB 업데이트 시점의 만료 전화번호 집합과 스냅샷 존재 여부를 반환한다.
+
+    Returns:
+        (expired_phones, had_snapshot)
+        - had_snapshot=False 이면 비교 기준이 없는 첫 실행이므로 신규 만료 알림을 띄우지 않아야 한다.
+    """
     if not _EXPIRY_SNAPSHOT_FILE.exists():
-        return set()
+        return set(), False
     try:
         data = json.loads(_EXPIRY_SNAPSHOT_FILE.read_text(encoding="utf-8"))
-        return set(data.get("expired_phones", []))
+        return set(data.get("expired_phones", [])), True
     except Exception:
-        return set()
+        return set(), False
 
 
 def save_expiry_snapshot(records: list[LockerRecord]) -> None:

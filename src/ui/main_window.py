@@ -710,7 +710,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            old_snapshot = load_expiry_snapshot()
+            old_snapshot, had_snapshot = load_expiry_snapshot()
 
             records = parse_xls(path, delete_after=True)
             merged = merge_records(load_records(), records)
@@ -731,9 +731,10 @@ class MainWindow(QMainWindow):
                 f"임박 {counts['imminent']} · 홀딩 {counts['holding']} · 미등록 {counts['unassigned']}",
             )
 
-            newly_expired = find_newly_expired(old_snapshot, merged)
-            if newly_expired:
-                self._prompt_newly_expired_locker(newly_expired)
+            if had_snapshot:
+                newly_expired = find_newly_expired(old_snapshot, merged)
+                if newly_expired:
+                    self._prompt_newly_expired_locker(newly_expired)
 
         except Exception as exc:
             QMessageBox.critical(self, "오류", f"파일 파싱 실패:\n{exc}")

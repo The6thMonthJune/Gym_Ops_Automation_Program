@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 import holidays as holidays_lib
 
 # 평일 전송 시각 (시, 분)
-WEEKDAY_SEND_TIME = (11, 30)
+WEEKDAY_SEND_TIME = (23, 30)
 # 주말·공휴일 전송 시각 (시, 분)
 HOLIDAY_SEND_TIME = (7, 30)
 
