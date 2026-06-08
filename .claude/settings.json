@@ -3,7 +3,17 @@
     "allow": [
       "Bash(git pull *)",
       "Bash(git stash *)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "mcp__claude_ai_Notion__notion-update-page",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "Bash(cd /d \"c:\\\\Users\\\\girad\\\\Documents\\\\GitHub\\\\Gym_Ops_Automation_Program\")",
+      "Bash(python -c \"from src.ui.countdown_dialog import CountdownDialog; from src.services.sales_report_service import build_countdown_text, read_monthly_totals_by_section; from src.config.settings import get_monthly_targets; print\\('import OK'\\)\")",
+      "Bash(git merge *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git push *)"
     ]
   }
 }

@@ -9,7 +9,7 @@ import holidays as holidays_lib
 # 평일 전송 시각 (시, 분)
 WEEKDAY_SEND_TIME = (23, 30)
 # 주말·공휴일 전송 시각 (시, 분)
-HOLIDAY_SEND_TIME = (7, 30)
+HOLIDAY_SEND_TIME = (19, 30)
 
 
 def _is_holiday(d: date) -> bool:
