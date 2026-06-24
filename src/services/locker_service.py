@@ -274,6 +274,9 @@ def get_expired_by_category(
             continue
         if _compute_state(rec) != "expired":
             continue
+        # locker_expiry가 없고 자물쇠를 보유 중이면 이용권 만료에 의한 오탐 — 제외
+        if rec.locker_expiry is None and rec.has_key:
+            continue
         membership_state = _compute_membership_state(rec)
         if membership_state in ("active", "imminent", "holding", "scheduled"):
             locker_only.append(rec)
