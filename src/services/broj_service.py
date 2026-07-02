@@ -189,7 +189,7 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
         ci_name       = _find_col(headers, "이름", "회원명", "고객명")
         ci_status     = _find_col(headers, "상태")
         ci_key        = _find_col(headers, "보유 대여권", "대여권", "락카권", "락커권", "대여관")
-        ci_locker     = _find_col(headers, "락커룸/락커번호", "락카룸/락카번호", "락커룸", "락카룸", "보유 락카")
+        ci_locker     = _find_col(headers, "락커룸/락커번호", "락카룸/락카번호", "락커룸", "락카룸", "대여관", "보유 락카")
         ci_expiry     = _find_col(headers, "최종 만료일", "만료일", "종료일", "이용 종료")
         ci_start      = _find_col(headers, "최초 등록일", "시작일", "개시일", "계약일", "최초 등록")
         ci_membership = _find_col(headers, "보유 이용권", "이용권", "보유 회원권", "보유 멤버", "멤버")
@@ -215,10 +215,14 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
             is_holding = status_val == "홀딩"
 
             # 보유 대여권 여부 — 락커/락카 대여권만 has_key=True (운동복 대여권 제외)
-            # 공백 유무 무관하게 인식: "락커 대여권", "락카대여권" 등
+            # 구버전: "락커 대여권(활성) 2026.04.28~2027.04.27"
+            # 신버전: "회원복 락카 / 87" (대여관 컬럼에 룸/번호 형식으로 기록)
             key_val = _get_cell(row_vals, ci_key)
             key_str = str(key_val).strip() if key_val else ""
-            is_locker_key = ("락커" in key_str or "락카" in key_str) and "대여권" in key_str
+            is_locker_key = (
+                ("락커" in key_str or "락카" in key_str)
+                and ("대여권" in key_str or "/" in key_str)
+            )
             has_key = (
                 bool(key_val)
                 and key_str not in ("", "0", "None", "없음", "X", "x")
