@@ -233,6 +233,22 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
             locker_val = _get_cell(row_vals, ci_locker)
             room, locker_num = _parse_locker_combined(locker_val)
 
+            # Fallback: 컬럼 감지 실패 시 모든 셀에서 "구역 / 번호" 패턴 자동 탐지
+            if locker_num == 0:
+                for cell_val in row_vals:
+                    if not cell_val:
+                        continue
+                    s = str(cell_val).strip()
+                    if "/" in s and ("락카" in s or "락커" in s):
+                        r, n = _parse_locker_combined(cell_val)
+                        if n > 0 and r in SECTION_OFFSET:
+                            room, locker_num = r, n
+                            break
+
+            # 락카 배정이 있으면 has_key 보장
+            if locker_num > 0:
+                has_key = True
+
             membership_val = _get_cell(row_vals, ci_membership)
             membership_type = (
                 str(membership_val).strip()

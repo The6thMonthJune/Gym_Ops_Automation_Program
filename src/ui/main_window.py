@@ -739,10 +739,11 @@ class MainWindow(QMainWindow):
             sync_from_locker_records(merged)
 
             total = sum(counts.values())
+            locker_count = sum(1 for r in records if r.locker_number > 0)
             QMessageBox.information(
                 self, "완료",
                 f"회원 DB 업데이트 완료\n"
-                f"가져온 인원: {len(records)}명 | 전체 DB: {total}명\n\n"
+                f"가져온 인원: {len(records)}명 (락카 배정: {locker_count}명) | 전체 DB: {total}명\n\n"
                 f"활성 {counts['active']} · 만료 {counts['expired']} · "
                 f"임박 {counts['imminent']} · 홀딩 {counts['holding']} · 미등록 {counts['unassigned']}",
             )

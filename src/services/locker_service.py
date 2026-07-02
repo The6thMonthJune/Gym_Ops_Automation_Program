@@ -30,24 +30,13 @@ class LockerCell:
 
 
 def _compute_state(record: LockerRecord) -> str:
-    """락카 그리드용: 락카 만료일(보유 대여권) 기준으로 상태를 계산한다."""
+    """락카 그리드용: 브로제이 배정 여부만 반영 (만료일 추적 안 함)."""
     if record.is_holding:
         return "holding"
     today = date.today()
     if record.is_locker_scheduled or (record.start_date and record.start_date > today):
         return "scheduled"
-    # 락카 배정은 있으나 대여권 없음 = 만료(보유 대여권 소멸)
-    if record.locker_number > 0 and not record.has_key:
-        return "expired"
-    expiry = record.locker_expiry or record.expiry_date  # 락카 만료일 우선
-    if expiry:
-        delta = (expiry - today).days
-        if delta < 0:
-            return "expired"
-        if delta <= IMMINENT_DAYS:
-            return "imminent"
-        return "active"
-    return "active" if record.has_key else "expired"
+    return "active"
 
 
 def _compute_membership_state(record: LockerRecord) -> str:
@@ -74,13 +63,11 @@ def build_grid(records: list[LockerRecord]) -> dict[int, LockerCell]:
         if rec.locker_number <= 0:
             continue
         state = _compute_state(rec)
-        expiry = rec.locker_expiry or rec.expiry_date
-        days = (expiry - date.today()).days if expiry else None
         grid[rec.locker_number] = LockerCell(
             number=rec.locker_number,
             state=state,
             member_name=rec.member_name,
-            days_remaining=days,
+            days_remaining=None,
         )
     return grid
 

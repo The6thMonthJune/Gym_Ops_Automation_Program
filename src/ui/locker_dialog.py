@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
 )
 
 from src.services.broj_service import LockerRecord
-from src.ui.expired_dialog import ExpiredLockerDialog
 from src.services.locker_service import (
     SECTIONS,
     LockerCell,
@@ -94,12 +93,7 @@ class _CellWidget(QFrame):
         vlay.addStretch()
 
         if cell:
-            if cell.days_remaining is not None:
-                sub_text = f"{cell.days_remaining}일" if cell.days_remaining >= 0 else "만료"
-            elif cell.state == "expired":
-                sub_text = "만료"
-            else:
-                sub_text = ""
+            sub_text = ""
         else:
             sub_text = "빈 칸"
 
@@ -229,10 +223,8 @@ class LockerDialog(QDialog):
         lay.addWidget(lbl)
 
         for state, text in [
-            ("active",     "활성"),
-            ("imminent",   "만료 임박"),
+            ("active",     "사용중"),
             ("scheduled",  "예정"),
-            ("expired",    "만료"),
             ("holding",    "홀딩"),
             ("empty",      "빈 칸"),
             ("unassigned", "미배정"),
@@ -301,18 +293,6 @@ class LockerDialog(QDialog):
         lay.setSpacing(8)
 
         lay.addStretch()
-
-        expired_btn = QPushButton("📋  만료자 명단")
-        expired_btn.setFixedSize(120, 38)
-        expired_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: #FEE2E2; color: #991B1B;
-                border: 1px solid #FECACA; border-radius: 6px; font-size: 12px; font-weight: bold;
-            }}
-            QPushButton:hover {{ background: #FECACA; }}
-        """)
-        expired_btn.clicked.connect(lambda: ExpiredLockerDialog(self).exec())
-        lay.addWidget(expired_btn)
 
         refresh_btn = QPushButton("↺  새로고침")
         refresh_btn.setFixedSize(100, 38)
@@ -396,23 +376,13 @@ class LockerDialog(QDialog):
     def _build_print_html(self) -> str:
         grid = build_grid(self._records)
 
-        state_labels = {
-            "active": "활성", "imminent": "만료임박", "scheduled": "예정",
-            "expired": "만료", "empty": "", "unassigned": "미배정",
-        }
-
         # 셀 하나 렌더링 (Qt HTML 렌더러용: div로 줄바꿈)
         def render_cell(n: int) -> str:
             cell  = grid.get(n)
             state = cell.state if cell else "empty"
             c     = _COLORS.get(state, _COLORS["empty"])
             name  = cell.member_name if cell else ""
-            if cell and cell.days_remaining is not None:
-                sub = f"{cell.days_remaining}일" if cell.days_remaining >= 0 else "만료"
-            elif cell:
-                sub = state_labels.get(state, "")
-            else:
-                sub = ""
+            sub   = ""
             return (
                 f'<td width="52" height="108" align="center" valign="top"'
                 f' style="background:{c["bg"]};border:1px solid {c["border"]};'
