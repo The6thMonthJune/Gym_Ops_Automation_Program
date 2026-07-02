@@ -117,12 +117,17 @@ def build_countdown_text(
     running_pt: int,
 ) -> str:
     today_total = today_center + today_pt
+
+    def _remaining(target: int, running: int) -> str:
+        diff = target - running
+        return "달성! 🎉" if diff <= 0 else format_currency(diff)
+
     return "\n".join([
         f"센터: {format_currency(today_center)}",
         f"피티: {format_currency(today_pt)}",
         f"총합: {format_currency(today_total)}",
         "",
         "목표까지 앞으로",
-        f"센터: {format_currency(center_target - running_center)}",
-        f"피티: {format_currency(pt_target - running_pt)}",
+        f"센터: {_remaining(center_target, running_center)}",
+        f"피티: {_remaining(pt_target, running_pt)}",
     ])

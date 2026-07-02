@@ -612,30 +612,46 @@ class MainWindow(QMainWindow):
         today = date.today()
         try:
             from src.config.settings import get_password
-            from src.services.total_sales_service import find_monthly_sheet_name, open_workbook
-            wb = open_workbook(self._path_total, get_password())
-            find_monthly_sheet_name(wb.sheetnames, today.year, today.month)
-        except ValueError:
-            reply = QMessageBox.question(
-                self,
-                "이번 달 시트 없음",
-                f"총매출 파일에 {today.month}월 시트가 없습니다.\n"
-                "전월 시트를 복사해 자동 생성할까요?",
-                QMessageBox.Yes | QMessageBox.No,
+            from src.services.total_sales_service import (
+                find_monthly_expense_sheet_name, find_monthly_sheet_name, open_workbook,
             )
-            if reply == QMessageBox.Yes:
-                self._create_monthly_sheet(today.year, today.month)
+            wb = open_workbook(self._path_total, get_password())
+            missing: list[str] = []
+            try:
+                find_monthly_sheet_name(wb.sheetnames, today.year, today.month)
+            except ValueError:
+                missing.append("매출")
+            try:
+                find_monthly_expense_sheet_name(wb.sheetnames, today.year, today.month)
+            except ValueError:
+                missing.append("지출")
+            if missing:
+                reply = QMessageBox.question(
+                    self,
+                    "이번 달 시트 없음",
+                    f"총매출 파일에 {today.month}월 {'/'.join(missing)} 시트가 없습니다.\n"
+                    "전월 시트를 복사해 자동 생성할까요?",
+                    QMessageBox.Yes | QMessageBox.No,
+                )
+                if reply == QMessageBox.Yes:
+                    self._create_monthly_sheet(today.year, today.month, "매출" in missing, "지출" in missing)
         except Exception:
             pass
 
-    def _create_monthly_sheet(self, year: int, month: int) -> None:
+    def _create_monthly_sheet(self, year: int, month: int, income: bool = True, expense: bool = True) -> None:
         try:
-            from src.services.entry_service import create_monthly_sheet
+            from src.services.entry_service import create_monthly_expense_sheet, create_monthly_sheet
             from src.config.settings import get_password
-            sheet_name = create_monthly_sheet(self._path_total, year, month, get_password())
+            created: list[str] = []
+            if income:
+                name = create_monthly_sheet(self._path_total, year, month, get_password())
+                created.append(f"매출: {name}")
+            if expense:
+                name = create_monthly_expense_sheet(self._path_total, year, month, get_password())
+                created.append(f"지출: {name}")
             QMessageBox.information(
                 self, "완료",
-                f"{month}월 매출 시트가 생성되었습니다.\n시트 이름: {sheet_name}"
+                f"{month}월 시트가 생성되었습니다.\n" + "\n".join(created)
             )
         except Exception as exc:
             QMessageBox.warning(self, "시트 생성 실패", str(exc))

@@ -171,31 +171,32 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
         book = app.books.open(str(resolved), update_links=0, ignore_read_only_recommended=True)
         sheet = book.sheets[0]
 
-        # 헤더 행 탐색
+        # 헤더 행 탐색 (구버전: 이름/회원명, 신버전: 고객명)
         header_row: int | None = None
         for r in range(1, 11):
             vals = sheet.range((r, 1), (r, 50)).value or []
             strs = [str(v).lower() if v else "" for v in vals]
-            if any("회원명" in s or "이름" in s for s in strs):
+            if any("회원명" in s or "이름" in s or "고객명" in s for s in strs):
                 header_row = r
                 break
 
         if header_row is None:
-            raise ValueError("헤더 행을 찾을 수 없습니다. '이름' 또는 '회원명' 열이 필요합니다.")
+            raise ValueError("헤더 행을 찾을 수 없습니다. '이름', '회원명' 또는 '고객명' 열이 필요합니다.")
 
         raw_headers = sheet.range((header_row, 1), (header_row, 50)).value or []
         headers = [str(h).strip() if h else "" for h in raw_headers]
 
-        ci_name   = _find_col(headers, "이름", "회원명")
-        ci_key    = _find_col(headers, "보유 대여권", "대여권", "락카권", "락커권")
-        ci_locker      = _find_col(headers, "락커룸/락커번호", "락카룸/락카번호", "락커룸", "락카룸")
-        ci_expiry      = _find_col(headers, "최종 만료일", "만료일", "종료일")
-        ci_start       = _find_col(headers, "최초 등록일", "시작일", "개시일", "계약일")
-        ci_membership  = _find_col(headers, "보유 이용권", "이용권", "보유 회원권")
-        ci_phone       = _find_col(headers, "연락처", "휴대폰번호", "핸드폰번호", "전화번호", "휴대폰", "핸드폰", "전화")
+        ci_name       = _find_col(headers, "이름", "회원명", "고객명")
+        ci_status     = _find_col(headers, "상태")
+        ci_key        = _find_col(headers, "보유 대여권", "대여권", "락카권", "락커권", "대여관")
+        ci_locker     = _find_col(headers, "락커룸/락커번호", "락카룸/락카번호", "락커룸", "락카룸", "보유 락카")
+        ci_expiry     = _find_col(headers, "최종 만료일", "만료일", "종료일", "이용 종료")
+        ci_start      = _find_col(headers, "최초 등록일", "시작일", "개시일", "계약일", "최초 등록")
+        ci_membership = _find_col(headers, "보유 이용권", "이용권", "보유 회원권", "보유 멤버", "멤버")
+        ci_phone      = _find_col(headers, "연락처", "휴대폰번호", "핸드폰번호", "전화번호", "휴대폰", "핸드폰", "전화")
 
         if ci_name is None:
-            raise ValueError(f"'이름' 열을 찾을 수 없습니다.\n발견된 헤더: {headers[:20]}")
+            raise ValueError(f"이름 열을 찾을 수 없습니다.\n발견된 헤더: {headers[:20]}")
 
         for r in range(header_row + 1, 5000):
             row_vals = sheet.range((r, 1), (r, 50)).value or []
@@ -206,8 +207,12 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
             if not name or name.lower() == "none":
                 continue
 
-            # A열(index 0)이 "홀딩"이면 홀딩 회원
-            is_holding = str(row_vals[0] or "").strip() == "홀딩"
+            # 상태 열이 있으면 사용, 없으면 A열(구버전 포맷) fallback
+            if ci_status is not None:
+                status_val = str(_get_cell(row_vals, ci_status) or "").strip()
+            else:
+                status_val = str(row_vals[0] or "").strip()
+            is_holding = status_val == "홀딩"
 
             # 보유 대여권 여부 — 락커/락카 대여권만 has_key=True (운동복 대여권 제외)
             # 공백 유무 무관하게 인식: "락커 대여권", "락카대여권" 등

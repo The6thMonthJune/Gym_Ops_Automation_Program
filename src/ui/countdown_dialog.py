@@ -69,8 +69,16 @@ class CountdownDialog(QDialog):
         save_copy_btn = QPushButton("📋  저장하고 복사")
         save_copy_btn.setFixedHeight(36)
         save_copy_btn.clicked.connect(self._save_and_copy)
+        reset_btn = QPushButton("🔄  초기화")
+        reset_btn.setFixedHeight(36)
+        reset_btn.setStyleSheet(
+            "QPushButton { background: #F3F4F6; color: #6B7280; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background: #E5E7EB; }"
+        )
+        reset_btn.clicked.connect(self._reset)
         btn_row.addWidget(refresh_btn)
         btn_row.addWidget(save_copy_btn)
+        btn_row.addWidget(reset_btn)
         layout.addLayout(btn_row)
 
         self.setLayout(layout)
@@ -100,6 +108,22 @@ class CountdownDialog(QDialog):
             )
         except Exception as exc:
             self._preview.setPlainText(f"오류: {exc}")
+
+    def _reset(self) -> None:
+        reply = QMessageBox.question(
+            self, "초기화 확인",
+            "누적 합산을 0으로 초기화하시겠습니까?\n새 달이 시작됐거나 목표를 새로 설정할 때 사용하세요.",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        save_countdown(0, 0, 0, 0)
+        self._baseline_center = 0
+        self._baseline_pt = 0
+        self._running_center = 0
+        self._running_pt = 0
+        self._refresh()
+        QMessageBox.information(self, "완료", "초기화되었습니다.")
 
     def _save_and_copy(self) -> None:
         text = self._preview.toPlainText()

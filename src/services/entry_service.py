@@ -280,6 +280,59 @@ def create_monthly_sheet(
             book.app.quit()
 
 
+def create_monthly_expense_sheet(
+    total_path: str | Path,
+    year: int,
+    month: int,
+    password: str | None = None,
+) -> str:
+    """
+    총매출 파일에 해당 연월 지출 시트가 없으면 전월 시트를 복사해 생성한다.
+    이미 존재하면 기존 시트 이름을 그대로 반환한다.
+    """
+    from src.services.total_sales_service import find_monthly_expense_sheet_name
+
+    book, was_open = _open_book(total_path, password=password)
+    try:
+        sheet_names = [s.name for s in book.sheets]
+
+        try:
+            return find_monthly_expense_sheet_name(sheet_names, year, month)
+        except ValueError:
+            pass
+
+        template_sheet = None
+        for delta in range(1, 4):
+            pm = month - delta
+            py = year
+            while pm <= 0:
+                pm += 12
+                py -= 1
+            try:
+                prev_name = find_monthly_expense_sheet_name(sheet_names, py, pm)
+                template_sheet = book.sheets[prev_name]
+                break
+            except ValueError:
+                continue
+
+        two_digit_year = year % 100
+        new_name = f"총 지출{two_digit_year}년 {month}월"
+
+        if template_sheet:
+            template_sheet.copy(after=book.sheets[-1])
+            new_sheet = book.sheets[-1]
+            new_sheet.name = new_name
+            new_sheet.range("B14:J500").clear_contents()
+        else:
+            book.sheets.add(new_name, after=book.sheets[-1])
+
+        book.save()
+        return new_name
+    finally:
+        if not was_open:
+            book.app.quit()
+
+
 # ── 공개 API ────────────────────────────────────────────────────────────────
 
 def write_entry_to_daily(
