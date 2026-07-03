@@ -30,12 +30,21 @@ class LockerCell:
 
 
 def _compute_state(record: LockerRecord) -> str:
-    """락카 그리드용: 브로제이 배정 여부만 반영 (만료일 추적 안 함)."""
+    """락카 그리드용: 락카 전용 만료일(locker_expiry)로 상태를 계산한다."""
     if record.is_holding:
         return "holding"
     today = date.today()
     if record.is_locker_scheduled or (record.start_date and record.start_date > today):
         return "scheduled"
+    if record.locker_number > 0 and not record.has_key:
+        return "expired"
+    if record.locker_expiry:
+        delta = (record.locker_expiry - today).days
+        if delta < 0:
+            return "expired"
+        if delta <= IMMINENT_DAYS:
+            return "imminent"
+        return "active"
     return "active"
 
 
@@ -63,11 +72,12 @@ def build_grid(records: list[LockerRecord]) -> dict[int, LockerCell]:
         if rec.locker_number <= 0:
             continue
         state = _compute_state(rec)
+        days = (rec.locker_expiry - date.today()).days if rec.locker_expiry else None
         grid[rec.locker_number] = LockerCell(
             number=rec.locker_number,
             state=state,
             member_name=rec.member_name,
-            days_remaining=None,
+            days_remaining=days,
         )
     return grid
 
@@ -290,3 +300,42 @@ def build_member_report_text(report_date: date, counts: dict[str, int]) -> str:
         f"미등록: {counts.get('unassigned', 0)}명\n\n"
         f"총: {total}명"
     )
+
+
+def sync_locker_expiries(locker_rows: list[LockerRecord]) -> int:
+    """락카 전용 엑셀 데이터로 기존 locker_data의 locker_expiry를 갱신한다.
+
+    락카번호를 기준으로 기존 DB 레코드를 찾아 locker_expiry만 업데이트한다.
+    기존 DB에 없는 번호(락카만 있고 회원권 없는 회원)는 그대로 추가한다.
+
+    Returns:
+        업데이트된 기존 레코드 수
+    """
+    expiry_by_num: dict[int, LockerRecord] = {
+        r.locker_number: r for r in locker_rows if r.locker_number > 0
+    }
+
+    existing = load_records()
+    existing_nums = {r.locker_number for r in existing if r.locker_number > 0}
+
+    updated = 0
+    patched: list[LockerRecord] = []
+    for rec in existing:
+        if rec.locker_number > 0 and rec.locker_number in expiry_by_num:
+            src = expiry_by_num[rec.locker_number]
+            patched.append(dc_replace(
+                rec,
+                locker_expiry=src.locker_expiry,
+                start_date=src.start_date or rec.start_date,
+            ))
+            updated += 1
+        else:
+            patched.append(rec)
+
+    # 기존 DB에 없는 락카 전용 회원 추가
+    for num, src in expiry_by_num.items():
+        if num not in existing_nums:
+            patched.append(src)
+
+    save_records(patched)
+    return updated
