@@ -18,18 +18,36 @@ _SECTIONS: list[tuple[str, str]] = [
 def _make_driver(download_dir: str):
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
 
     opts = Options()
-    opts.add_argument("--headless=new")
+    opts.add_argument("--headless")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--disable-gpu")
     opts.add_argument("--window-size=1920,1080")
+    opts.add_argument("--disable-extensions")
     opts.add_experimental_option("prefs", {
         "download.default_directory": download_dir,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
+        "safebrowsing.enabled": True,
     })
-    return webdriver.Chrome(options=opts)
+
+    # 시스템에 설치된 chromedriver를 우선 사용 (Selenium Manager 자동 다운로드 실패 시 대비)
+    import shutil
+    driver_path = shutil.which("chromedriver")
+    service = Service(driver_path) if driver_path else Service()
+
+    driver = webdriver.Chrome(service=service, options=opts)
+
+    # headless 모드에서 파일 다운로드 활성화 (CDP 명령)
+    driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+        "behavior": "allow",
+        "downloadPath": download_dir,
+    })
+
+    return driver
 
 
 def _wait_new_xlsx(download_dir: Path, before: set[str], timeout: int = 30) -> Path | None:
