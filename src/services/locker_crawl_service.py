@@ -36,7 +36,18 @@ def _make_driver(download_dir: str):
     })
 
     # 설치된 Chrome 버전에 맞는 ChromeDriver 자동 다운로드
-    service = Service(ChromeDriverManager().install())
+    driver_path = ChromeDriverManager().install()
+
+    # Mac: Gatekeeper가 인터넷에서 받은 바이너리를 차단하므로 격리 속성 제거
+    import platform
+    if platform.system() == "Darwin":
+        import subprocess
+        subprocess.run(
+            ["xattr", "-d", "com.apple.quarantine", driver_path],
+            capture_output=True,
+        )
+
+    service = Service(driver_path)
     driver = webdriver.Chrome(service=service, options=opts)
 
     # headless 모드에서 파일 다운로드 활성화 (CDP 명령)
