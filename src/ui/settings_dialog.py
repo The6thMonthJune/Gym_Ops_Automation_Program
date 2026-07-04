@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 
 from src.config.settings import (
     _KEY_APARTMENT_COMPLEXES,
+    _KEY_BROJ_PASSWORD,
+    _KEY_BROJ_USERNAME,
     _KEY_EXPENSE_DAILY_SHEET,
     _KEY_MONTHLY_TARGET_CENTER,
     _KEY_MONTHLY_TARGET_PT,
@@ -95,6 +97,15 @@ class SettingsDialog(QDialog):
         self.sms_test_phone_input.setPlaceholderText("예: 01012345678  (테스트 발송 전용)")
         form.addRow("SMS 테스트 번호:", self.sms_test_phone_input)
 
+        self.broj_username_input = QLineEdit()
+        self.broj_username_input.setPlaceholderText("브로제이 로그인 이메일 또는 아이디")
+        form.addRow("브로제이 아이디:", self.broj_username_input)
+
+        self.broj_password_input = QLineEdit()
+        self.broj_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.broj_password_input.setPlaceholderText("브로제이 비밀번호")
+        form.addRow("브로제이 비밀번호:", self.broj_password_input)
+
         layout.addLayout(form)
 
         # 아파트 단지 목록 편집
@@ -148,6 +159,8 @@ class SettingsDialog(QDialog):
         self.sms_username_input.setText(settings.get(_KEY_SMS_GATEWAY_USERNAME, ""))
         self.sms_password_input.setText(settings.get(_KEY_SMS_GATEWAY_PASSWORD, ""))
         self.sms_test_phone_input.setText(settings.get(_KEY_SMS_TEST_PHONE, ""))
+        self.broj_username_input.setText(settings.get(_KEY_BROJ_USERNAME, ""))
+        self.broj_password_input.setText(settings.get(_KEY_BROJ_PASSWORD, ""))
         self._apt_list.clear()
         for apt in settings.get(_KEY_APARTMENT_COMPLEXES, []):
             self._apt_list.addItem(apt)
@@ -186,6 +199,8 @@ class SettingsDialog(QDialog):
         settings[_KEY_SMS_GATEWAY_USERNAME] = self.sms_username_input.text().strip()
         settings[_KEY_SMS_GATEWAY_PASSWORD] = self.sms_password_input.text()
         settings[_KEY_SMS_TEST_PHONE] = self.sms_test_phone_input.text().strip()
+        settings[_KEY_BROJ_USERNAME] = self.broj_username_input.text().strip()
+        settings[_KEY_BROJ_PASSWORD] = self.broj_password_input.text()
         settings[_KEY_APARTMENT_COMPLEXES] = [
             self._apt_list.item(i).text() for i in range(self._apt_list.count())
         ]

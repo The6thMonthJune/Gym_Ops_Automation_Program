@@ -131,6 +131,66 @@ def _parse_locker_combined(val) -> tuple[str, int]:
         return "", 0
 
 
+def parse_locker_xlsx(path: str | Path, section_name: str) -> list[LockerRecord]:
+    """
+    브로제이 락커관리 리스트 엑셀을 파싱해 LockerRecord 목록을 반환한다.
+
+    컬럼 순서 (A~I, 1행 헤더):
+      번호, 상태, 고객명, 성별, 연락처, 시작일, 만료일, 비밀번호, 메모
+
+    번호는 구역 내 로컬 번호 → SECTION_OFFSET을 더해 전역 번호로 변환한다.
+    """
+    import openpyxl
+
+    path = Path(path)
+    offset = SECTION_OFFSET.get(section_name, 0)
+
+    wb = openpyxl.load_workbook(path, data_only=True)
+    ws = wb.active
+
+    records: list[LockerRecord] = []
+
+    # 1행이 헤더이므로 2행부터 읽음
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or row[0] is None:
+            break
+
+        try:
+            local_num = int(float(str(row[0])))
+        except (TypeError, ValueError):
+            continue
+
+        status_str = str(row[1] or "").strip()
+        name = str(row[2] or "").strip()
+        # row[3] = 성별 (미사용)
+        phone = _normalize_phone(row[4])
+        start = _parse_date(row[5])
+        expiry = _parse_date(row[6])
+        # row[7] = 비밀번호, row[8] = 메모 (미사용)
+
+        if not name or name.lower() == "none":
+            continue
+        # 미배정 칸은 건너뜀
+        if status_str in ("미배정", "", "빈칸"):
+            continue
+
+        records.append(LockerRecord(
+            member_name=name,
+            locker_room=section_name,
+            locker_number=local_num + offset,
+            has_key=True,
+            expiry_date=None,
+            start_date=start,
+            is_holding="홀딩" in status_str,
+            membership_type=None,
+            phone_number=phone,
+            locker_expiry=expiry,
+            is_locker_scheduled=False,
+        ))
+
+    return records
+
+
 def read_xls_headers(xls_path: str | Path) -> list[str]:
     """XLS 파일의 헤더 행만 빠르게 읽어 반환한다 (디버그용)."""
     resolved = Path(xls_path).resolve()

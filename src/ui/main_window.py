@@ -492,6 +492,12 @@ class MainWindow(QMainWindow):
         countdown_btn.clicked.connect(self._open_countdown)
         lay.addWidget(countdown_btn)
 
+        sync_btn = QPushButton("🔄  락카 DB 동기화")
+        sync_btn.setFixedHeight(36)
+        sync_btn.setStyleSheet(_slim_style)
+        sync_btn.clicked.connect(self._sync_locker_db)
+        lay.addWidget(sync_btn)
+
         locker_sms_btn = QPushButton("📱  만료 락카 문자 발송")
         locker_sms_btn.setFixedHeight(36)
         locker_sms_btn.setStyleSheet(_slim_style)
@@ -839,6 +845,71 @@ class MainWindow(QMainWindow):
     def _open_locker_sms(self) -> None:
         from src.ui.locker_sms_dialog import LockerSmsDialog
         LockerSmsDialog(parent=self).exec()
+
+    def _sync_locker_db(self) -> None:
+        import threading
+        from PySide6.QtWidgets import QProgressDialog
+        from src.config.settings import get_broj_credentials
+
+        username, password = get_broj_credentials()
+        if not username or not password:
+            QMessageBox.warning(
+                self, "설정 필요",
+                "설정에서 브로제이 아이디/비밀번호를 먼저 입력해주세요.",
+            )
+            return
+
+        progress = QProgressDialog(
+            "브로제이에서 락카 데이터를 가져오는 중...\n(약 1~2분 소요)", None, 0, 0, self
+        )
+        progress.setWindowTitle("락카 DB 동기화")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setCancelButton(None)
+        progress.setMinimumDuration(0)
+        progress.show()
+        QApplication.processEvents()
+
+        errors: list = []
+        locker_rows: list = []
+
+        def _run() -> None:
+            try:
+                from src.services.locker_crawl_service import fetch_locker_records
+                rows = fetch_locker_records(username, password)
+                locker_rows.extend(rows)
+            except Exception as exc:
+                errors.append(str(exc))
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        while t.is_alive():
+            QApplication.processEvents()
+            t.join(timeout=0.1)
+
+        progress.close()
+
+        if errors:
+            QMessageBox.critical(self, "동기화 실패", errors[0])
+            return
+
+        if not locker_rows:
+            QMessageBox.warning(
+                self, "동기화 실패",
+                "수집된 락카 데이터가 없습니다.\n"
+                "브로제이 아이디/비밀번호와 네트워크 연결을 확인해주세요.",
+            )
+            return
+
+        try:
+            from src.services.locker_service import sync_locker_expiries
+            updated = sync_locker_expiries(locker_rows)
+            QMessageBox.information(
+                self, "동기화 완료",
+                f"락카 DB 동기화 완료\n"
+                f"락카 {len(locker_rows)}개 수집 · {updated}개 레코드 업데이트",
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "파싱 오류", str(exc))
 
     def _prompt_newly_expired_locker(self, newly_expired) -> None:
         names = ", ".join(r.member_name for r in newly_expired[:5])
