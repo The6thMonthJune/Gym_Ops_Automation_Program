@@ -15,7 +15,7 @@ PySide6==6.11.0
 PySide6_Addons==6.11.0
 PySide6_Essentials==6.11.0
 pytest==9.0.2
-pywin32==311
+pywin32==311; sys_platform == "win32"
 ruff==0.15.8
 shiboken6==6.11.0
 selenium==4.34.0
