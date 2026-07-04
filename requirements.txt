@@ -19,4 +19,5 @@ pywin32==311; sys_platform == "win32"
 ruff==0.15.8
 shiboken6==6.11.0
 selenium==4.34.0
+webdriver-manager==4.0.2
 xlwings==0.35.1
