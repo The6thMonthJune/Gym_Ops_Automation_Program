@@ -21,8 +21,10 @@ def _make_driver(download_dir: str):
     from selenium.webdriver.chrome.service import Service
     from webdriver_manager.chrome import ChromeDriverManager
 
+    import platform
+
     opts = Options()
-    opts.add_argument("--headless")
+    opts.add_argument("--headless=new")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--disable-gpu")
@@ -35,11 +37,16 @@ def _make_driver(download_dir: str):
         "safebrowsing.enabled": True,
     })
 
+    # Mac: Chrome 바이너리 경로 명시 (chromedriver가 못 찾는 경우 대비)
+    if platform.system() == "Darwin":
+        chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        if Path(chrome_path).exists():
+            opts.binary_location = chrome_path
+
     # 설치된 Chrome 버전에 맞는 ChromeDriver 자동 다운로드
     driver_path = ChromeDriverManager().install()
 
-    # Mac: Gatekeeper가 인터넷에서 받은 바이너리를 차단하므로 격리 속성 제거
-    import platform
+    # Mac: Gatekeeper 격리 속성 제거
     if platform.system() == "Darwin":
         import subprocess
         subprocess.run(
