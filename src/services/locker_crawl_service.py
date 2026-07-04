@@ -54,8 +54,19 @@ def _make_driver(download_dir: str):
             capture_output=True,
         )
 
-    service = Service(driver_path)
-    driver = webdriver.Chrome(service=service, options=opts)
+    import tempfile
+    _log_file = Path(tempfile.gettempdir()) / "chromedriver_debug.log"
+    service = Service(driver_path, log_output=str(_log_file))
+    try:
+        driver = webdriver.Chrome(service=service, options=opts)
+    except Exception:
+        # 크래시 시 chromedriver 로그를 에러 메시지에 포함
+        log_content = _log_file.read_text(encoding="utf-8", errors="replace") if _log_file.exists() else "(로그 없음)"
+        raise RuntimeError(
+            f"Chrome 실행 실패\n"
+            f"ChromeDriver: {driver_path}\n"
+            f"--- chromedriver 로그 ---\n{log_content[-2000:]}"
+        ) from None
 
     # headless 모드에서 파일 다운로드 활성화 (CDP 명령)
     driver.execute_cdp_cmd("Page.setDownloadBehavior", {
@@ -118,18 +129,24 @@ def download_locker_excels(
         driver.get(_BROJ_BASE)
         time.sleep(2)
 
-        email_el = wait.until(EC.presence_of_element_located((
-            By.CSS_SELECTOR,
-            "input[type='email'], input[type='text']",
+        # 랜딩 페이지 → '로그인 페이지' 버튼 클릭 → OAuth 로그인 화면으로 이동
+        login_page_btn = wait.until(EC.element_to_be_clickable((
+            By.XPATH, "//button[contains(text(),'로그인 페이지')]",
         )))
-        email_el.clear()
-        email_el.send_keys(username)
+        login_page_btn.click()
+        time.sleep(2)
+        _log("로그인 페이지 이동 완료")
 
-        pw_el = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
+        # OAuth 로그인 폼 (id=login_id, id=login_password, id=login-submit)
+        id_el = wait.until(EC.presence_of_element_located((By.ID, "login_id")))
+        id_el.clear()
+        id_el.send_keys(username)
+
+        pw_el = driver.find_element(By.ID, "login_password")
         pw_el.clear()
         pw_el.send_keys(password)
 
-        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+        driver.find_element(By.ID, "login-submit").click()
         _log("로그인 시도 중...")
 
         # 로그인 완료 = 대시보드 또는 사이드바 메뉴 등장
