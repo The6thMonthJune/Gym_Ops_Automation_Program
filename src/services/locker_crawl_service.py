@@ -1,27 +1,30 @@
 from __future__ import annotations
 
+import re
 import time
+from datetime import date
 from pathlib import Path
 from typing import Callable
 
+from src.services.broj_service import LockerRecord
+
 _BROJ_BASE = "https://crm.broj.co.kr"
 
-# 구역 순서: (내부 이름, 탭 검색 키워드)
-# 첫 번째 구역은 페이지 진입 시 기본 선택되어 있음
-_SECTIONS: list[tuple[str, str]] = [
-    ("남자 탈의실", "남자"),
-    ("회원복 락카", "회원복"),
-    ("메인 락카", "메인"),
+# 순서대로 처리할 섹션: (내부명, 드롭다운 검색 키워드)
+# 첫 번째 섹션은 기본 표시 상태이므로 드롭다운 클릭 불필요
+_SECTIONS = [
+    ("남자 탈의실", None),         # 기본 선택 상태
+    ("회원복 락카", "회원복 락카"),
+    ("메인 락카",   "메인 락카"),
 ]
 
 
-def _make_driver(download_dir: str):
+def _make_driver():
+    import platform
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.chrome.service import Service
     from webdriver_manager.chrome import ChromeDriverManager
-
-    import platform
 
     opts = Options()
     opts.add_argument("--headless=new")
@@ -30,23 +33,14 @@ def _make_driver(download_dir: str):
     opts.add_argument("--disable-gpu")
     opts.add_argument("--window-size=1920,1080")
     opts.add_argument("--disable-extensions")
-    opts.add_experimental_option("prefs", {
-        "download.default_directory": download_dir,
-        "download.prompt_for_download": False,
-        "download.directory_upgrade": True,
-        "safebrowsing.enabled": True,
-    })
 
-    # Mac: Chrome 바이너리 경로 명시 (chromedriver가 못 찾는 경우 대비)
     if platform.system() == "Darwin":
         chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
         if Path(chrome_path).exists():
             opts.binary_location = chrome_path
 
-    # 설치된 Chrome 버전에 맞는 ChromeDriver 자동 다운로드
     driver_path = ChromeDriverManager().install()
 
-    # Mac: Gatekeeper 격리 속성 제거
     if platform.system() == "Darwin":
         import subprocess
         subprocess.run(
@@ -54,58 +48,82 @@ def _make_driver(download_dir: str):
             capture_output=True,
         )
 
-    import tempfile
-    _log_file = Path(tempfile.gettempdir()) / "chromedriver_debug.log"
-    service = Service(driver_path, log_output=str(_log_file))
+    service = Service(driver_path)
+    return webdriver.Chrome(service=service, options=opts)
+
+
+def _parse_button_text(text: str) -> tuple[int, str, date | None, bool] | None:
+    """로컬뷰 버튼 텍스트 → (전역번호, 이름, 만료일, is_holding).
+
+    버튼 형식 예:
+      "1\\n오동혁\\n~2027-02-22\\n233일후 만료\\n활성"
+      "22"  ← 미배정, None 반환
+    """
+    lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
+    if len(lines) < 2:
+        return None
+
     try:
-        driver = webdriver.Chrome(service=service, options=opts)
-    except Exception:
-        # 크래시 시 chromedriver 로그를 에러 메시지에 포함
-        log_content = _log_file.read_text(encoding="utf-8", errors="replace") if _log_file.exists() else "(로그 없음)"
-        raise RuntimeError(
-            f"Chrome 실행 실패\n"
-            f"ChromeDriver: {driver_path}\n"
-            f"--- chromedriver 로그 ---\n{log_content[-2000:]}"
-        ) from None
+        num = int(lines[0])
+    except ValueError:
+        return None
 
-    # headless 모드에서 파일 다운로드 활성화 (CDP 명령)
-    driver.execute_cdp_cmd("Page.setDownloadBehavior", {
-        "behavior": "allow",
-        "downloadPath": download_dir,
-    })
+    name = lines[1]
+    expiry: date | None = None
+    is_holding = False
 
-    return driver
+    for line in lines[2:]:
+        if line.startswith("~"):
+            m = re.search(r"(\d{4}-\d{2}-\d{2})", line)
+            if m:
+                try:
+                    expiry = date.fromisoformat(m.group(1))
+                except ValueError:
+                    pass
+        if "홀딩" in line:
+            is_holding = True
 
-
-def _wait_new_xlsx(download_dir: Path, before: set[str], timeout: int = 30) -> Path | None:
-    """새 xlsx 파일이 다운로드 완료될 때까지 폴링한다."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        current = {
-            f.name for f in download_dir.glob("*.xlsx")
-            if not f.name.endswith(".crdownload")
-        }
-        new = current - before
-        if new:
-            # 파일 쓰기가 완전히 끝났는지 잠시 대기
-            time.sleep(0.3)
-            return download_dir / next(iter(new))
-        time.sleep(0.5)
-    return None
+    return num, name, expiry, is_holding
 
 
-def download_locker_excels(
+def _collect_section(driver, section_name: str) -> list[LockerRecord]:
+    """현재 섹션 박스뷰 버튼을 파싱해 LockerRecord 목록으로 반환한다."""
+    from selenium.webdriver.common.by import By
+
+    records: list[LockerRecord] = []
+    btns = driver.find_elements(By.TAG_NAME, "button")
+    for btn in btns:
+        parsed = _parse_button_text(btn.text)
+        if parsed is None:
+            continue
+        num, name, expiry, is_holding = parsed
+        records.append(LockerRecord(
+            member_name=name,
+            locker_room=section_name,
+            locker_number=num,
+            has_key=True,
+            expiry_date=None,
+            start_date=None,
+            is_holding=is_holding,
+            membership_type=None,
+            phone_number=None,
+            locker_expiry=expiry,
+            is_locker_scheduled=False,
+        ))
+    return records
+
+
+def fetch_locker_records(
     username: str,
     password: str,
-    download_dir: Path,
     log: Callable[[str], None] | None = None,
-) -> list[tuple[str, Path]]:
-    """
-    브로제이 CRM에 자동 로그인 후 락커관리 리스트 뷰에서
-    3개 구역 엑셀을 순서대로 다운로드한다.
+) -> list[LockerRecord]:
+    """브로제이 CRM에 자동 로그인 후 3개 구역 락카 데이터를 직접 파싱한다.
+
+    Excel 다운로드 없이 박스뷰 DOM에서 번호·이름·만료일을 직접 읽는다.
 
     Returns:
-        [(section_name, file_path), ...]  — 성공한 구역만 포함
+        3개 구역 전체 LockerRecord 목록
 
     Raises:
         RuntimeError: 로그인 실패 또는 페이지 탐색 오류
@@ -118,112 +136,70 @@ def download_locker_excels(
         if log:
             log(msg)
 
-    download_dir.mkdir(parents=True, exist_ok=True)
-    driver = _make_driver(str(download_dir.resolve()))
+    driver = _make_driver()
     wait = WebDriverWait(driver, 20)
-    results: list[tuple[str, Path]] = []
+    all_records: list[LockerRecord] = []
 
     try:
-        # ── 1. 로그인 ────────────────────────────────────────────────────
+        # ── 1. 로그인 ────────────────────────────────────────────────
         _log("브로제이 접속 중...")
         driver.get(_BROJ_BASE)
         time.sleep(2)
 
-        # 랜딩 페이지 → '로그인 페이지' 버튼 클릭 → OAuth 로그인 화면으로 이동
-        login_page_btn = wait.until(EC.element_to_be_clickable((
-            By.XPATH, "//button[contains(text(),'로그인 페이지')]",
-        )))
-        login_page_btn.click()
+        # 랜딩 → OAuth 로그인 화면
+        wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//button[contains(text(),'로그인 페이지')]")
+        )).click()
         time.sleep(2)
-        _log("로그인 페이지 이동 완료")
 
-        # OAuth 로그인 폼 (id=login_id, id=login_password, id=login-submit)
-        id_el = wait.until(EC.presence_of_element_located((By.ID, "login_id")))
-        id_el.clear()
-        id_el.send_keys(username)
-
-        pw_el = driver.find_element(By.ID, "login_password")
-        pw_el.clear()
-        pw_el.send_keys(password)
-
+        wait.until(EC.presence_of_element_located((By.ID, "login_id"))).send_keys(username)
+        driver.find_element(By.ID, "login_password").send_keys(password)
         driver.find_element(By.ID, "login-submit").click()
         _log("로그인 시도 중...")
 
-        # 로그인 완료 = 대시보드 또는 사이드바 메뉴 등장
-        wait.until(EC.presence_of_element_located((
-            By.XPATH,
-            "//*[contains(text(),'락커관리') or contains(text(),'대시보드') or contains(text(),'인사이트')]",
-        )))
+        wait.until(EC.presence_of_element_located(
+            (By.XPATH, "//*[contains(text(),'락커관리')]")
+        ))
         _log("로그인 완료")
         time.sleep(1)
 
-        # ── 2. 락커관리 메뉴 클릭 ────────────────────────────────────────
-        locker_menu = wait.until(EC.element_to_be_clickable((
-            By.XPATH,
-            "//a[contains(text(),'락커관리')] | //span[contains(text(),'락커관리')]/.. | //li[contains(text(),'락커관리')]",
-        )))
-        locker_menu.click()
-        time.sleep(2)
+        # ── 2. 락커관리 진입 ──────────────────────────────────────────
+        driver.execute_script(
+            "arguments[0].click();",
+            driver.find_element(By.XPATH, "//a[contains(text(),'락커관리')]"),
+        )
+        time.sleep(3)
         _log("락커관리 페이지 이동 완료")
 
-        # ── 3. 3개 구역 순서대로 다운로드 ───────────────────────────────
-        for idx, (section_name, tab_keyword) in enumerate(_SECTIONS):
-            _log(f"[{idx + 1}/3] {section_name} 처리 중...")
+        # ── 3. iframe[0] 전환 (콘텐츠 전체가 iframe 안에 있음) ──────
+        iframes = driver.find_elements(By.TAG_NAME, "iframe")
+        if not iframes:
+            raise RuntimeError("락커관리 iframe을 찾을 수 없습니다.")
+        driver.switch_to.frame(iframes[0])
+        _log("iframe 전환 완료")
 
-            # 두 번째 구역부터는 탭 선택이 필요
-            if idx > 0:
-                # "더보기" 버튼이 있으면 클릭해 숨겨진 탭 펼치기
-                try:
-                    more_btns = driver.find_elements(
-                        By.XPATH, "//*[contains(text(),'더보기')]"
-                    )
-                    for btn in more_btns:
-                        if btn.is_displayed():
-                            btn.click()
-                            time.sleep(0.5)
-                            break
-                except Exception:
-                    pass
+        # ── 4. 3개 구역 순서대로 파싱 ───────────────────────────────
+        for idx, (section_name, dropdown_keyword) in enumerate(_SECTIONS):
+            _log(f"[{idx + 1}/3] {section_name} 수집 중...")
 
-                # 구역 탭 클릭
-                section_tab = wait.until(EC.element_to_be_clickable((
-                    By.XPATH, f"//*[contains(text(),'{tab_keyword}') and (self::button or self::a or self::li or self::span)]",
-                )))
-                section_tab.click()
-                time.sleep(1.5)
+            if dropdown_keyword:
+                # 드롭다운 열기
+                more_btn = wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, "//button[.//span[contains(text(),'더보기')]]")
+                ))
+                more_btn.click()
+                time.sleep(1)
 
-            # 리스트 뷰로 전환
-            list_btn = wait.until(EC.element_to_be_clickable((
-                By.XPATH, "//button[normalize-space(text())='리스트'] | //*[normalize-space(text())='리스트' and (@role='button' or self::button)]",
-            )))
-            list_btn.click()
-            time.sleep(1)
-            _log(f"  리스트 뷰 전환 완료")
+                # 해당 섹션 선택
+                section_item = wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, f"//*[contains(text(),'{dropdown_keyword}') and not(contains(@class,'badge'))]")
+                ))
+                section_item.click()
+                time.sleep(2)
 
-            # 엑셀 다운로드
-            before_files = {f.name for f in download_dir.glob("*.xlsx")}
-
-            excel_btn = wait.until(EC.element_to_be_clickable((
-                By.XPATH,
-                "//*[contains(text(),'엑셀') or contains(text(),'Excel') or "
-                "contains(@title,'엑셀') or contains(@aria-label,'엑셀') or "
-                "contains(@title,'Excel') or contains(@aria-label,'Excel')]",
-            )))
-            excel_btn.click()
-            _log(f"  다운로드 클릭 — 완료 대기 중...")
-
-            downloaded = _wait_new_xlsx(download_dir, before_files, timeout=30)
-            if downloaded:
-                # 구역명으로 파일 rename
-                safe_name = section_name.replace(" ", "_")
-                target = download_dir / f"locker_{idx + 1}_{safe_name}.xlsx"
-                if target.exists():
-                    target.unlink()
-                downloaded.rename(target)
-                results.append((section_name, target))
-                _log(f"  저장 완료: {target.name}")
-            else:
-                _log(f"  [경고] {section_name} 다운로드 실패 또는 시간 초과")
+            records = _collect_section(driver, section_name)
+            all_records.extend(records)
+            _log(f"  {section_name}: {len(records)}개 수집")
 
     except Exception as exc:
         _log(f"오류 발생: {exc}")
@@ -234,4 +210,4 @@ def download_locker_excels(
         except Exception:
             pass
 
-    return results
+    return all_records

@@ -847,7 +847,6 @@ class MainWindow(QMainWindow):
         LockerSmsDialog(parent=self).exec()
 
     def _sync_locker_db(self) -> None:
-        import tempfile
         import threading
         from PySide6.QtWidgets import QProgressDialog
         from src.config.settings import get_broj_credentials
@@ -870,15 +869,14 @@ class MainWindow(QMainWindow):
         progress.show()
         QApplication.processEvents()
 
-        tmp_dir = Path(tempfile.mkdtemp(prefix="gym_locker_"))
-        results: list = []
         errors: list = []
+        locker_rows: list = []
 
         def _run() -> None:
             try:
-                from src.services.locker_crawl_service import download_locker_excels
-                r = download_locker_excels(username, password, tmp_dir)
-                results.extend(r)
+                from src.services.locker_crawl_service import fetch_locker_records
+                rows = fetch_locker_records(username, password)
+                locker_rows.extend(rows)
             except Exception as exc:
                 errors.append(str(exc))
 
@@ -894,32 +892,21 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "동기화 실패", errors[0])
             return
 
-        if not results:
+        if not locker_rows:
             QMessageBox.warning(
                 self, "동기화 실패",
-                "다운로드된 파일이 없습니다.\n"
+                "수집된 락카 데이터가 없습니다.\n"
                 "브로제이 아이디/비밀번호와 네트워크 연결을 확인해주세요.",
             )
             return
 
         try:
-            from src.services.broj_service import parse_locker_xlsx
             from src.services.locker_service import sync_locker_expiries
-
-            all_rows = []
-            for section_name, file_path in results:
-                rows = parse_locker_xlsx(file_path, section_name)
-                all_rows.extend(rows)
-                try:
-                    file_path.unlink()
-                except Exception:
-                    pass
-
-            updated = sync_locker_expiries(all_rows)
+            updated = sync_locker_expiries(locker_rows)
             QMessageBox.information(
                 self, "동기화 완료",
                 f"락카 DB 동기화 완료\n"
-                f"락카 {len(all_rows)}개 처리 · {updated}개 레코드 업데이트",
+                f"락카 {len(locker_rows)}개 수집 · {updated}개 레코드 업데이트",
             )
         except Exception as exc:
             QMessageBox.critical(self, "파싱 오류", str(exc))
