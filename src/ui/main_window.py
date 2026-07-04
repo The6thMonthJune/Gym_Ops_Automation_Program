@@ -859,6 +859,17 @@ class MainWindow(QMainWindow):
             )
             return
 
+        reply = QMessageBox.question(
+            self, "락카 DB 동기화",
+            "동기화하는 동안 브로제이에 자동으로 로그인합니다.\n"
+            "이 때 현재 열려 있는 브로제이 창에서 로그아웃될 수 있습니다.\n\n"
+            "동기화가 끝난 후 브로제이를 새로 고침하거나 다시 로그인해주세요.\n\n"
+            "지금 진행하시겠습니까?",
+            QMessageBox.Ok | QMessageBox.Cancel,
+        )
+        if reply != QMessageBox.Ok:
+            return
+
         progress = QProgressDialog(
             "브로제이에서 락카 데이터를 가져오는 중...\n(약 1~2분 소요)", None, 0, 0, self
         )

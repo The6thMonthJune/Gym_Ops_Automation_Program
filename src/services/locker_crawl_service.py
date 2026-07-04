@@ -137,21 +137,20 @@ def fetch_locker_records(
             log(msg)
 
     driver = _make_driver()
-    wait = WebDriverWait(driver, 20)
+    wait = WebDriverWait(driver, 40)  # 느린 PC 대응 — 20 → 40초
     all_records: list[LockerRecord] = []
 
     try:
         # ── 1. 로그인 ────────────────────────────────────────────────
         _log("브로제이 접속 중...")
         driver.get(_BROJ_BASE)
-        time.sleep(2)
 
-        # 랜딩 → OAuth 로그인 화면
+        # 랜딩 → OAuth 로그인 화면 (sleep 없이 버튼이 클릭 가능해질 때까지 대기)
         wait.until(EC.element_to_be_clickable(
             (By.XPATH, "//button[contains(text(),'로그인 페이지')]")
         )).click()
-        time.sleep(2)
 
+        # login_id 필드가 나타날 때까지 대기 (sleep 불필요)
         wait.until(EC.presence_of_element_located((By.ID, "login_id"))).send_keys(username)
         driver.find_element(By.ID, "login_password").send_keys(password)
         driver.find_element(By.ID, "login-submit").click()
@@ -161,14 +160,15 @@ def fetch_locker_records(
             (By.XPATH, "//*[contains(text(),'락커관리')]")
         ))
         _log("로그인 완료")
-        time.sleep(1)
 
         # ── 2. 락커관리 진입 ──────────────────────────────────────────
         driver.execute_script(
             "arguments[0].click();",
             driver.find_element(By.XPATH, "//a[contains(text(),'락커관리')]"),
         )
-        time.sleep(3)
+        # iframe이 DOM에 나타날 때까지 대기 (sleep(3) 대체)
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
+        time.sleep(2)  # iframe 내부 콘텐츠 렌더링 여유
         _log("락커관리 페이지 이동 완료")
 
         # ── 3. iframe[0] 전환 (콘텐츠 전체가 iframe 안에 있음) ──────
@@ -176,6 +176,8 @@ def fetch_locker_records(
         if not iframes:
             raise RuntimeError("락커관리 iframe을 찾을 수 없습니다.")
         driver.switch_to.frame(iframes[0])
+        # 첫 번째 버튼이 나타날 때까지 대기
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "button")))
         _log("iframe 전환 완료")
 
         # ── 4. 3개 구역 순서대로 파싱 ───────────────────────────────
@@ -183,19 +185,19 @@ def fetch_locker_records(
             _log(f"[{idx + 1}/3] {section_name} 수집 중...")
 
             if dropdown_keyword:
-                # 드롭다운 열기
+                # 드롭다운 열기 (JS click — 클릭 불가 오류 방지)
                 more_btn = wait.until(EC.element_to_be_clickable(
                     (By.XPATH, "//button[.//span[contains(text(),'더보기')]]")
                 ))
-                more_btn.click()
-                time.sleep(1)
+                driver.execute_script("arguments[0].click();", more_btn)
+                time.sleep(1.5)
 
                 # 해당 섹션 선택
                 section_item = wait.until(EC.element_to_be_clickable(
                     (By.XPATH, f"//*[contains(text(),'{dropdown_keyword}') and not(contains(@class,'badge'))]")
                 ))
-                section_item.click()
-                time.sleep(2)
+                driver.execute_script("arguments[0].click();", section_item)
+                time.sleep(4)  # 느린 PC 대응 — 2 → 4초
 
             records = _collect_section(driver, section_name)
             all_records.extend(records)
