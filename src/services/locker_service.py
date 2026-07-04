@@ -324,9 +324,11 @@ def sync_locker_expiries(locker_rows: list[LockerRecord]) -> int:
     existing_nums = {r.locker_number for r in existing if r.locker_number > 0}
 
     updated = 0
+    cleared = 0
     patched: list[LockerRecord] = []
     for rec in existing:
         if rec.locker_number > 0 and rec.locker_number in expiry_by_num:
+            # 브로제이에 여전히 배정 중 → 만료일 업데이트
             src = expiry_by_num[rec.locker_number]
             patched.append(dc_replace(
                 rec,
@@ -334,6 +336,15 @@ def sync_locker_expiries(locker_rows: list[LockerRecord]) -> int:
                 start_date=src.start_date or rec.start_date,
             ))
             updated += 1
+        elif rec.locker_number > 0:
+            # 브로제이에서 사라짐 = 회수 처리
+            patched.append(dc_replace(
+                rec,
+                locker_number=0,
+                has_key=False,
+                locker_expiry=None,
+            ))
+            cleared += 1
         else:
             patched.append(rec)
 

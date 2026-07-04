@@ -93,7 +93,13 @@ class _CellWidget(QFrame):
         vlay.addStretch()
 
         if cell:
-            sub_text = ""
+            if cell.days_remaining is not None:
+                if cell.days_remaining >= 0:
+                    sub_text = f"{cell.days_remaining}일 남음"
+                else:
+                    sub_text = f"{abs(cell.days_remaining)}일 경과"
+            else:
+                sub_text = ""
         else:
             sub_text = "빈 칸"
 
