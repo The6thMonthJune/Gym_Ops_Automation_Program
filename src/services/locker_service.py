@@ -132,6 +132,11 @@ def merge_records(
         if old_key and old_key != key:
             merged.pop(old_key, None)
 
+        # 락카 만료일은 Selenium 동기화에서만 기록됨 — 회원 엑셀에 없으면 기존 값 유지
+        existing_rec = merged.get(key)
+        if existing_rec and r.locker_expiry is None and existing_rec.locker_expiry is not None:
+            r = dc_replace(r, locker_expiry=existing_rec.locker_expiry)
+
         merged[key] = r
 
     return list(merged.values())
