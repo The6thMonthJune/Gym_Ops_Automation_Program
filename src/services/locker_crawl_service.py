@@ -25,18 +25,23 @@ def _make_driver():
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
 
+    system = platform.system()
+
     opts = Options()
-    opts.add_argument("--headless=new")
+    if system == "Darwin":
+        # Mac ARM: --headless=new 필수 (--headless는 크래시)
+        opts.add_argument("--headless=new")
+    # Windows: headless 사용 안 함 — 보안 정책/백신이 백그라운드 Chrome을 강제 종료하는 문제 방지
+    # (Chrome 창이 잠깐 뜨지만 동기화 완료 후 자동으로 닫힘)
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--disable-gpu")
-    opts.add_argument("--window-size=1920,1080")
+    opts.add_argument("--window-size=1280,800")
     opts.add_argument("--disable-extensions")
     # 기존 Chrome과 프로필 잠금 충돌 방지
     opts.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
 
-    # Mac: Chrome 경로 명시 (Windows는 Selenium Manager가 레지스트리에서 자동 탐색)
-    if platform.system() == "Darwin":
+    if system == "Darwin":
         chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
         if Path(chrome_path).exists():
             opts.binary_location = chrome_path
