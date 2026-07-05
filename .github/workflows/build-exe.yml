@@ -37,6 +37,7 @@ jobs:
           --add-data "assets;assets"
           --collect-all holidays
           --hidden-import holidays.countries.KR
+          --collect-all selenium
           run.py
 
       - name: 빌드 결과물 업로드 (Artifact)

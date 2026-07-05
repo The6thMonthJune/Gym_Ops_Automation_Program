@@ -20,13 +20,10 @@ _SECTIONS = [
 
 
 def _make_driver():
-    import os
     import platform
     import tempfile
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
-    from webdriver_manager.chrome import ChromeDriverManager
 
     opts = Options()
     opts.add_argument("--headless=new")
@@ -35,39 +32,18 @@ def _make_driver():
     opts.add_argument("--disable-gpu")
     opts.add_argument("--window-size=1920,1080")
     opts.add_argument("--disable-extensions")
-    # 매 실행마다 독립된 임시 프로필 사용 — 기존 Chrome과 프로필 잠금 충돌 방지
+    # 기존 Chrome과 프로필 잠금 충돌 방지
     opts.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
 
-    system = platform.system()
-
-    if system == "Darwin":
+    # Mac: Chrome 경로 명시 (Windows는 Selenium Manager가 레지스트리에서 자동 탐색)
+    if platform.system() == "Darwin":
         chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
         if Path(chrome_path).exists():
             opts.binary_location = chrome_path
 
-    elif system == "Windows":
-        # 일반적인 Windows Chrome 설치 경로 순서대로 탐색
-        _win_chrome_candidates = [
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
-        ]
-        for p in _win_chrome_candidates:
-            if Path(p).exists():
-                opts.binary_location = p
-                break
-
-    driver_path = ChromeDriverManager().install()
-
-    if system == "Darwin":
-        import subprocess
-        subprocess.run(
-            ["xattr", "-d", "com.apple.quarantine", driver_path],
-            capture_output=True,
-        )
-
-    service = Service(driver_path)
-    return webdriver.Chrome(service=service, options=opts)
+    # Selenium Manager (selenium 4.6+ 내장)가 Chrome 버전에 맞는
+    # ChromeDriver를 자동 감지·다운로드·캐시 — webdriver-manager 불필요
+    return webdriver.Chrome(options=opts)
 
 
 def _parse_button_text(text: str) -> tuple[int, str, date | None, bool] | None:
