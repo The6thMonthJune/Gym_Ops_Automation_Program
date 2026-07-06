@@ -27,6 +27,22 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: EdgeDriver 번들 다운로드
+        shell: pwsh
+        run: |
+          $edgePath = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+          if (-not (Test-Path $edgePath)) {
+            $edgePath = "C:\Program Files\Microsoft\Edge\Application\msedge.exe"
+          }
+          $edgeVersion = (Get-Item $edgePath).VersionInfo.ProductVersion
+          Write-Host "Edge version: $edgeVersion"
+          New-Item -ItemType Directory -Force -Path drivers | Out-Null
+          $driverUrl = "https://msedgewebdriverstorage.blob.core.windows.net/edgewebdriver/$edgeVersion/edgedriver_win64.zip"
+          Invoke-WebRequest -Uri $driverUrl -OutFile edgedriver.zip
+          Expand-Archive -Path edgedriver.zip -DestinationPath drivers_tmp/
+          Copy-Item drivers_tmp/msedgedriver.exe drivers/msedgedriver.exe
+          Write-Host "EdgeDriver ready: $(Get-Item drivers/msedgedriver.exe)"
+
       - name: EXE 빌드
         run: >
           pyinstaller
@@ -35,6 +51,7 @@ jobs:
           --name GymOps
           --icon assets/아이콘.ico
           --add-data "assets;assets"
+          --add-data "drivers/msedgedriver.exe;drivers"
           --collect-all holidays
           --hidden-import holidays.countries.KR
           --collect-all selenium

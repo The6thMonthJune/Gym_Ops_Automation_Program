@@ -43,24 +43,14 @@ def _make_driver():
     ]
 
     if system == "Windows":
-        import os
         import sys
         from selenium.webdriver.edge.options import Options as EdgeOptions
-
-        # EXE 옆 drivers/ 폴더에 드라이버 저장
-        # → Downloads/Desktop 등 사용자 폴더는 신뢰된 위치라 보안 소프트웨어가 덜 차단함
-        if getattr(sys, "frozen", False):
-            se_cache = Path(sys.executable).parent / "drivers"
-        else:
-            se_cache = Path.home() / ".cache" / "selenium"
-        se_cache.mkdir(exist_ok=True)
-        os.environ["SE_CACHE_PATH"] = str(se_cache)
+        from selenium.webdriver.edge.service import Service as EdgeService
 
         opts = EdgeOptions()
         for arg in _common_args:
             opts.add_argument(arg)
 
-        # Edge 설치 경로 명시 → Selenium Manager가 버전 감지·드라이버 매칭에 활용
         for edge_path in [
             r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
             r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
@@ -69,6 +59,19 @@ def _make_driver():
                 opts.binary_location = edge_path
                 break
 
+        # 빌드 시 번들된 msedgedriver.exe를 우선 사용 → 런타임 네트워크 다운로드 불필요
+        driver_candidates: list[Path] = []
+        if getattr(sys, "frozen", False):
+            driver_candidates.append(Path(sys._MEIPASS) / "drivers" / "msedgedriver.exe")
+            driver_candidates.append(Path(sys.executable).parent / "drivers" / "msedgedriver.exe")
+        else:
+            driver_candidates.append(Path(__file__).parent.parent.parent / "drivers" / "msedgedriver.exe")
+
+        for candidate in driver_candidates:
+            if candidate.exists():
+                return webdriver.Edge(service=EdgeService(executable_path=str(candidate)), options=opts)
+
+        # 번들 드라이버가 없으면 Selenium Manager 자동 탐색 시도
         return webdriver.Edge(options=opts)
 
     # Mac: Chrome + headless=new (Mac ARM은 --headless 크래시)
