@@ -23,31 +23,47 @@ def _make_driver():
     import platform
     import tempfile
     from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
 
     system = platform.system()
 
+    # 공통 안정성 플래그 (메모리·렌더링 크래시 방지)
+    _common_args = [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--window-size=1280,800",
+        "--disable-extensions",
+        "--no-first-run",
+        "--disable-default-apps",
+        "--disable-background-networking",
+        "--disable-sync",
+        "--disable-translate",
+        "--disable-background-timer-throttling",
+        f"--user-data-dir={tempfile.mkdtemp()}",
+    ]
+
+    if system == "Windows":
+        # Windows: Edge 사용
+        # - Windows 10/11 기본 내장 → 별도 설치·드라이버 다운로드 안정적
+        # - Microsoft 제품 → 보안 소프트웨어 차단 없음
+        # - Chromium 기반이라 브로제이 SPA 호환 동일
+        from selenium.webdriver.edge.options import Options as EdgeOptions
+        opts = EdgeOptions()
+        for arg in _common_args:
+            opts.add_argument(arg)
+        return webdriver.Edge(options=opts)
+
+    # Mac: Chrome + headless=new (Mac ARM은 --headless 크래시)
+    from selenium.webdriver.chrome.options import Options
     opts = Options()
-    if system == "Darwin":
-        # Mac ARM: --headless=new 필수 (--headless는 크래시)
-        opts.add_argument("--headless=new")
-    # Windows: headless 사용 안 함 — 보안 정책/백신이 백그라운드 Chrome을 강제 종료하는 문제 방지
-    # (Chrome 창이 잠깐 뜨지만 동기화 완료 후 자동으로 닫힘)
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--disable-gpu")
-    opts.add_argument("--window-size=1280,800")
-    opts.add_argument("--disable-extensions")
-    # 기존 Chrome과 프로필 잠금 충돌 방지
-    opts.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
+    opts.add_argument("--headless=new")
+    for arg in _common_args:
+        opts.add_argument(arg)
 
-    if system == "Darwin":
-        chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-        if Path(chrome_path).exists():
-            opts.binary_location = chrome_path
+    chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    if Path(chrome_path).exists():
+        opts.binary_location = chrome_path
 
-    # Selenium Manager (selenium 4.6+ 내장)가 Chrome 버전에 맞는
-    # ChromeDriver를 자동 감지·다운로드·캐시 — webdriver-manager 불필요
     return webdriver.Chrome(options=opts)
 
 
