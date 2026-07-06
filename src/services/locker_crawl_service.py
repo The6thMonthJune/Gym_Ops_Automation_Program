@@ -43,14 +43,32 @@ def _make_driver():
     ]
 
     if system == "Windows":
-        # Windows: Edge 사용
-        # - Windows 10/11 기본 내장 → 별도 설치·드라이버 다운로드 안정적
-        # - Microsoft 제품 → 보안 소프트웨어 차단 없음
-        # - Chromium 기반이라 브로제이 SPA 호환 동일
+        import os
+        import sys
         from selenium.webdriver.edge.options import Options as EdgeOptions
+
+        # EXE 옆 drivers/ 폴더에 드라이버 저장
+        # → Downloads/Desktop 등 사용자 폴더는 신뢰된 위치라 보안 소프트웨어가 덜 차단함
+        if getattr(sys, "frozen", False):
+            se_cache = Path(sys.executable).parent / "drivers"
+        else:
+            se_cache = Path.home() / ".cache" / "selenium"
+        se_cache.mkdir(exist_ok=True)
+        os.environ["SE_CACHE_PATH"] = str(se_cache)
+
         opts = EdgeOptions()
         for arg in _common_args:
             opts.add_argument(arg)
+
+        # Edge 설치 경로 명시 → Selenium Manager가 버전 감지·드라이버 매칭에 활용
+        for edge_path in [
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        ]:
+            if Path(edge_path).exists():
+                opts.binary_location = edge_path
+                break
+
         return webdriver.Edge(options=opts)
 
     # Mac: Chrome + headless=new (Mac ARM은 --headless 크래시)
