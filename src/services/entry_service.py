@@ -270,6 +270,15 @@ def create_monthly_sheet(
             new_sheet.name = new_name
             # 12행부터 데이터 클리어 (센터 B~N, 레슨 P~AB 포함 범위)
             new_sheet.range("B12:AH500").clear_contents()
+            # M열 수식 복원: clear_contents로 지워지므로 재삽입
+            # F열(회원권 종류)에 PT/EV 포함 시 L열(담당) 유무에 따라 배정요함/PT이벤트 표시
+            new_sheet.range("M12:M500").formula = (
+                '=IFERROR(IF((IFERROR(IF(FIND("EV",F12)>0,1,0),0))'
+                '+(IFERROR(IF(FIND("ev",F12)>0,1,0),0))'
+                '+(IFERROR(IF(FIND("pt",F12)>0,1,0),0))'
+                '+(IFERROR(IF(FIND("PT",F12)>0,1,0),0))>0,'
+                'IF(L12>"","PT이벤트","배정요함"),""),"")'
+            )
         else:
             book.sheets.add(new_name, after=book.sheets[-1])
 
