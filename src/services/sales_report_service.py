@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -69,6 +69,51 @@ def read_daily_section_totals(daily_path: str | Path) -> dict[str, int]:
     }
 
 
+def read_range_totals(
+    daily_dir: Path,
+    start_date: date,
+    end_date: date,
+) -> dict[str, int]:
+    """daily_dir 안의 데일리 파일 중 start_date~end_date에 해당하는 파일을 모두 읽어 합산한다."""
+    from src.core.file_naming import extract_date_from_filename
+
+    totals = {"center": 0, "pt": 0}
+    if not daily_dir.exists():
+        return totals
+
+    years = {start_date.year, end_date.year}
+
+    for xlsx_file in sorted(daily_dir.glob("*.xlsx")):
+        if xlsx_file.name.startswith("~$"):
+            continue
+        try:
+            parsed = extract_date_from_filename(xlsx_file.name)
+        except ValueError:
+            continue
+
+        in_range = False
+        for year in years:
+            try:
+                file_date = parsed.to_date(year)
+            except ValueError:
+                continue
+            if start_date <= file_date <= end_date:
+                in_range = True
+                break
+
+        if not in_range:
+            continue
+
+        try:
+            daily = read_daily_section_totals(xlsx_file)
+            totals["center"] += daily["center"]
+            totals["pt"] += daily["pt"]
+        except Exception:
+            continue
+
+    return totals
+
+
 
 # 총매출 파일 월 시트에서 센터/피티 금액 컬럼 (1-based)
 # 센터: 시작 B(2) → 이름 D(4), 금액 G(7)
@@ -109,25 +154,23 @@ def read_monthly_totals_by_section(
 
 
 def build_countdown_text(
-    today_center: int,
-    today_pt: int,
+    accumulated_center: int,
+    accumulated_pt: int,
     center_target: int,
     pt_target: int,
-    running_center: int,
-    running_pt: int,
 ) -> str:
-    today_total = today_center + today_pt
+    total = accumulated_center + accumulated_pt
 
     def _remaining(target: int, running: int) -> str:
         diff = target - running
         return "달성! 🎉" if diff <= 0 else format_currency(diff)
 
     return "\n".join([
-        f"센터: {format_currency(today_center)}",
-        f"피티: {format_currency(today_pt)}",
-        f"총합: {format_currency(today_total)}",
+        f"센터: {format_currency(accumulated_center)}",
+        f"피티: {format_currency(accumulated_pt)}",
+        f"총합: {format_currency(total)}",
         "",
         "목표까지 앞으로",
-        f"센터: {_remaining(center_target, running_center)}",
-        f"피티: {_remaining(pt_target, running_pt)}",
+        f"센터: {_remaining(center_target, accumulated_center)}",
+        f"피티: {_remaining(pt_target, accumulated_pt)}",
     ])
