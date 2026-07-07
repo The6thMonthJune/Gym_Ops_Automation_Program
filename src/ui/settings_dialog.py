@@ -18,8 +18,6 @@ from src.config.settings import (
     _KEY_BROJ_PASSWORD,
     _KEY_BROJ_USERNAME,
     _KEY_EXPENSE_DAILY_SHEET,
-    _KEY_MONTHLY_TARGET_CENTER,
-    _KEY_MONTHLY_TARGET_PT,
     _KEY_NATEON_WEBHOOK_URL,
     _KEY_PHONE_IP,
     _KEY_SMS_GATEWAY_PASSWORD,
@@ -71,14 +69,6 @@ class SettingsDialog(QDialog):
         self.nateon_webhook_input = QLineEdit()
         self.nateon_webhook_input.setPlaceholderText("https://teamroom.nate.com/api/webhook/...")
         form.addRow("네이트온 웹훅 URL:", self.nateon_webhook_input)
-
-        self.target_center_input = QLineEdit()
-        self.target_center_input.setPlaceholderText("예: 10000000")
-        form.addRow("센터 월 목표금액 (원):", self.target_center_input)
-
-        self.target_pt_input = QLineEdit()
-        self.target_pt_input.setPlaceholderText("예: 10000000")
-        form.addRow("피티 월 목표금액 (원):", self.target_pt_input)
 
         self.sms_port_input = QLineEdit()
         self.sms_port_input.setPlaceholderText("기본값: 8080")
@@ -153,8 +143,6 @@ class SettingsDialog(QDialog):
         self.expense_sheet_input.setText(settings.get(_KEY_EXPENSE_DAILY_SHEET, ""))
         self.phone_ip_input.setText(settings.get(_KEY_PHONE_IP, ""))
         self.nateon_webhook_input.setText(settings.get(_KEY_NATEON_WEBHOOK_URL, ""))
-        self.target_center_input.setText(str(settings.get(_KEY_MONTHLY_TARGET_CENTER, "") or ""))
-        self.target_pt_input.setText(str(settings.get(_KEY_MONTHLY_TARGET_PT, "") or ""))
         self.sms_port_input.setText(str(settings.get(_KEY_SMS_GATEWAY_PORT, "") or ""))
         self.sms_username_input.setText(settings.get(_KEY_SMS_GATEWAY_USERNAME, ""))
         self.sms_password_input.setText(settings.get(_KEY_SMS_GATEWAY_PASSWORD, ""))
@@ -184,14 +172,6 @@ class SettingsDialog(QDialog):
         settings[_KEY_EXPENSE_DAILY_SHEET] = self.expense_sheet_input.text().strip()
         settings[_KEY_PHONE_IP] = self.phone_ip_input.text().strip()
         settings[_KEY_NATEON_WEBHOOK_URL] = self.nateon_webhook_input.text().strip()
-        try:
-            settings[_KEY_MONTHLY_TARGET_CENTER] = int(self.target_center_input.text().strip() or 0)
-        except ValueError:
-            settings[_KEY_MONTHLY_TARGET_CENTER] = 0
-        try:
-            settings[_KEY_MONTHLY_TARGET_PT] = int(self.target_pt_input.text().strip() or 0)
-        except ValueError:
-            settings[_KEY_MONTHLY_TARGET_PT] = 0
         try:
             settings[_KEY_SMS_GATEWAY_PORT] = int(self.sms_port_input.text().strip() or 8080)
         except ValueError:

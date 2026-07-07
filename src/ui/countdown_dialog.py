@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from src.config.settings import get_monthly_targets
 from src.services.countdown_service import load_period_settings, save_period_settings
 from src.services.sales_report_service import build_countdown_text, read_range_totals
 
@@ -45,12 +44,11 @@ class CountdownDialog(QDialog):
         data = load_period_settings()
         today = date.today()
         last_day = calendar.monthrange(today.year, today.month)[1]
-        fallback_center, fallback_pt = get_monthly_targets()
 
         self._start_date: date = data.get("start_date") or date(today.year, today.month, 1)
         self._end_date: date = data.get("end_date") or date(today.year, today.month, last_day)
-        self._center_target: int = data.get("center_target") or fallback_center or 0
-        self._pt_target: int = data.get("pt_target") or fallback_pt or 0
+        self._center_target: int = data.get("center_target") or 0
+        self._pt_target: int = data.get("pt_target") or 0
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout()
