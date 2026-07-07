@@ -252,7 +252,7 @@ def parse_xls(xls_path: str | Path, delete_after: bool = True) -> list[LockerRec
         ci_locker     = _find_col(headers, "락커룸/락커번호", "락카룸/락카번호", "락커룸", "락카룸", "대여관", "보유 락카")
         ci_expiry     = _find_col(headers, "최종 만료일", "만료일", "종료일", "이용 종료")
         ci_start      = _find_col(headers, "최초 등록일", "시작일", "개시일", "계약일", "최초 등록")
-        ci_membership = _find_col(headers, "보유 이용권", "이용권", "보유 회원권", "보유 멤버", "멤버")
+        ci_membership = _find_col(headers, "보유 이용권", "이용권", "보유 회원권")
         ci_phone      = _find_col(headers, "연락처", "휴대폰번호", "핸드폰번호", "전화번호", "휴대폰", "핸드폰", "전화")
 
         if ci_name is None:
