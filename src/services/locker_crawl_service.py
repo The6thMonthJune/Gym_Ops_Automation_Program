@@ -179,44 +179,44 @@ def fetch_locker_records(
     all_records: list[LockerRecord] = []
 
     try:
-        # ── 1. 로그인 ────────────────────────────────────────────────
-        _log("브로제이 접속 중...")
-        driver.get(_BROJ_BASE)
+        # ── 1. 로그인 (DNS 실패 시 최대 3회 재시도) ──────────────────
+        from selenium.common.exceptions import TimeoutException
+        for attempt in range(1, 4):
+            _log(f"브로제이 접속 중... (시도 {attempt}/3)")
+            driver.get(_BROJ_BASE)
+            try:
+                wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, "//button[contains(text(),'로그인 페이지')]")
+                )).click()
+                break  # 성공 시 루프 탈출
+            except TimeoutException:
+                if attempt == 3:
+                    raise RuntimeError("브로제이 접속 실패 — 로그인 버튼을 찾을 수 없습니다. (DNS 오류 또는 네트워크 불안정)")
+                _log(f"접속 실패, {5}초 후 재시도...")
+                time.sleep(5)
 
-        # 랜딩 → OAuth 로그인 화면 (sleep 없이 버튼이 클릭 가능해질 때까지 대기)
-        wait.until(EC.element_to_be_clickable(
-            (By.XPATH, "//button[contains(text(),'로그인 페이지')]")
-        )).click()
-
-        # login_id 필드가 나타날 때까지 대기 (sleep 불필요)
         wait.until(EC.presence_of_element_located((By.ID, "login_id"))).send_keys(username)
         driver.find_element(By.ID, "login_password").send_keys(password)
         driver.find_element(By.ID, "login-submit").click()
         _log("로그인 시도 중...")
 
-        # 클릭 가능 상태까지 대기 (presence만으론 SPA 렌더 완료 보장 안 됨)
         wait.until(EC.element_to_be_clickable(
             (By.XPATH, "//a[contains(text(),'락커관리')]")
         ))
-        time.sleep(2)  # 느린 PC: DOM 있어도 SPA 내부 초기화 대기
+        time.sleep(2)  # SPA 내부 초기화 대기
         _log("로그인 완료")
 
         # ── 2. 락커관리 진입 ──────────────────────────────────────────
-        driver.execute_script(
-            "arguments[0].click();",
-            driver.find_element(By.XPATH, "//a[contains(text(),'락커관리')]"),
-        )
-        # iframe이 DOM에 나타날 때까지 대기
+        driver.find_element(By.XPATH, "//a[contains(text(),'락커관리')]").click()
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
-        time.sleep(3)  # iframe 내부 콘텐츠 렌더링 여유 (2→3초)
+        time.sleep(3)
         _log("락커관리 페이지 이동 완료")
 
-        # ── 3. iframe[0] 전환 (콘텐츠 전체가 iframe 안에 있음) ──────
+        # ── 3. iframe[0] 전환 ──────────────────────────────────────────
         iframes = driver.find_elements(By.TAG_NAME, "iframe")
         if not iframes:
             raise RuntimeError("락커관리 iframe을 찾을 수 없습니다.")
         driver.switch_to.frame(iframes[0])
-        # 첫 번째 버튼이 나타날 때까지 대기
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "button")))
         _log("iframe 전환 완료")
 
@@ -225,19 +225,18 @@ def fetch_locker_records(
             _log(f"[{idx + 1}/3] {section_name} 수집 중...")
 
             if dropdown_keyword:
-                # 드롭다운 열기 (JS click — 클릭 불가 오류 방지)
+                # JS click 대신 native click — 보안 소프트웨어 간섭 최소화
                 more_btn = wait.until(EC.element_to_be_clickable(
                     (By.XPATH, "//button[.//span[contains(text(),'더보기')]]")
                 ))
-                driver.execute_script("arguments[0].click();", more_btn)
-                time.sleep(1.5)
+                more_btn.click()
+                time.sleep(2)
 
-                # 해당 섹션 선택
                 section_item = wait.until(EC.element_to_be_clickable(
                     (By.XPATH, f"//*[contains(text(),'{dropdown_keyword}') and not(contains(@class,'badge'))]")
                 ))
-                driver.execute_script("arguments[0].click();", section_item)
-                time.sleep(4)  # 느린 PC 대응 — 2 → 4초
+                section_item.click()
+                time.sleep(4)
 
             records = _collect_section(driver, section_name)
             all_records.extend(records)
