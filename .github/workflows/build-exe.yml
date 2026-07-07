@@ -28,38 +28,17 @@ jobs:
           pip install pyinstaller
 
       - name: EdgeDriver 번들 다운로드
-        shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path drivers | Out-Null
-
-          # PATH에 msedgedriver가 있으면 그대로 사용 (runner 기본 설치)
-          $fromPath = Get-Command msedgedriver.exe -ErrorAction SilentlyContinue
-          if ($fromPath) {
-            Write-Host "Found EdgeDriver in PATH: $($fromPath.Source)"
-            Copy-Item $fromPath.Source drivers/msedgedriver.exe
-          } else {
-            # Edge 버전 감지 후 직접 다운로드
-            $edgePath = @(
-              "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-              "C:\Program Files\Microsoft\Edge\Application\msedge.exe"
-            ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-
-            if (-not $edgePath) { throw "Microsoft Edge를 찾을 수 없습니다." }
-            $edgeVersion = (Get-Item $edgePath).VersionInfo.ProductVersion
-            Write-Host "Edge version: $edgeVersion"
-
-            $driverUrl = "https://msedgedriver.azureedge.net/$edgeVersion/edgedriver_win64.zip"
-            Write-Host "Downloading: $driverUrl"
-            Invoke-WebRequest -Uri $driverUrl -OutFile edgedriver.zip -UseBasicParsing
-            Expand-Archive -Path edgedriver.zip -DestinationPath drivers_tmp/ -Force
-
-            # ZIP 내부 폴더 구조 무관하게 탐색
-            $driverExe = Get-ChildItem -Path drivers_tmp/ -Recurse -Filter "msedgedriver.exe" | Select-Object -First 1
-            if (-not $driverExe) { throw "msedgedriver.exe를 압축 파일에서 찾을 수 없습니다." }
-            Copy-Item $driverExe.FullName drivers/msedgedriver.exe
-          }
-
-          Write-Host "EdgeDriver ready: $((Get-Item drivers/msedgedriver.exe).Length) bytes"
+          pip install webdriver-manager
+          python -c "
+          from webdriver_manager.microsoft import EdgeChromiumDriverManager
+          import shutil, os
+          os.makedirs('drivers', exist_ok=True)
+          path = EdgeChromiumDriverManager().install()
+          print(f'Downloaded: {path}')
+          shutil.copy(path, 'drivers/msedgedriver.exe')
+          print(f'Ready: drivers/msedgedriver.exe')
+          "
 
       - name: EXE 빌드
         run: >
