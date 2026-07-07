@@ -27,6 +27,8 @@ def _make_driver():
     system = platform.system()
 
     # 공통 안정성 플래그 (메모리·렌더링 크래시 방지)
+    # RendererCodeIntegrity 비활성: 보안SW가 브라우저에 코드를 주입할 때
+    # GetHandleVerifier가 프로세스를 강제 종료하는 문제를 방지
     _common_args = [
         "--no-sandbox",
         "--disable-dev-shm-usage",
@@ -35,10 +37,10 @@ def _make_driver():
         "--disable-extensions",
         "--no-first-run",
         "--disable-default-apps",
-        "--disable-background-networking",
         "--disable-sync",
         "--disable-translate",
         "--disable-background-timer-throttling",
+        "--disable-features=RendererCodeIntegrity",
         f"--user-data-dir={tempfile.mkdtemp()}",
     ]
 
