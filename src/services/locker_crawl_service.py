@@ -11,9 +11,9 @@ from src.services.broj_service import LockerRecord
 _BROJ_BASE = "https://crm.broj.co.kr"
 
 # 순서대로 처리할 섹션: (내부명, 드롭다운 검색 키워드)
-# 첫 번째 섹션은 기본 표시 상태이므로 드롭다운 클릭 불필요
+# 모든 섹션을 드롭다운으로 명시적 선택 — 기본값 가정 시 남자 탈의실 누락 발생
 _SECTIONS = [
-    ("남자 탈의실", None),         # 기본 선택 상태
+    ("남자 탈의실", "남자 탈의실"),
     ("회원복 락카", "회원복 락카"),
     ("메인 락카",   "메인 락카"),
 ]
@@ -194,9 +194,11 @@ def fetch_locker_records(
         driver.find_element(By.ID, "login-submit").click()
         _log("로그인 시도 중...")
 
-        wait.until(EC.presence_of_element_located(
-            (By.XPATH, "//*[contains(text(),'락커관리')]")
+        # 클릭 가능 상태까지 대기 (presence만으론 SPA 렌더 완료 보장 안 됨)
+        wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//a[contains(text(),'락커관리')]")
         ))
+        time.sleep(2)  # 느린 PC: DOM 있어도 SPA 내부 초기화 대기
         _log("로그인 완료")
 
         # ── 2. 락커관리 진입 ──────────────────────────────────────────
@@ -204,9 +206,9 @@ def fetch_locker_records(
             "arguments[0].click();",
             driver.find_element(By.XPATH, "//a[contains(text(),'락커관리')]"),
         )
-        # iframe이 DOM에 나타날 때까지 대기 (sleep(3) 대체)
+        # iframe이 DOM에 나타날 때까지 대기
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
-        time.sleep(2)  # iframe 내부 콘텐츠 렌더링 여유
+        time.sleep(3)  # iframe 내부 콘텐츠 렌더링 여유 (2→3초)
         _log("락커관리 페이지 이동 완료")
 
         # ── 3. iframe[0] 전환 (콘텐츠 전체가 iframe 안에 있음) ──────
