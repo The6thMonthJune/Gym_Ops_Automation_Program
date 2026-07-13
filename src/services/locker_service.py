@@ -308,49 +308,70 @@ def build_member_report_text(report_date: date, counts: dict[str, int]) -> str:
 
 
 def sync_locker_expiries(locker_rows: list[LockerRecord]) -> int:
-    """락카 전용 엑셀 데이터로 기존 locker_data의 locker_expiry를 갱신한다.
+    """브로제이 Selenium 스크랩 결과로 락카 DB를 동기화한다.
 
-    락카번호를 기준으로 기존 DB 레코드를 찾아 locker_expiry만 업데이트한다.
-    기존 DB에 없는 번호(락카만 있고 회원권 없는 회원)는 그대로 추가한다.
+    락카번호 + 회원명이 모두 일치하는 경우에만 만료일을 업데이트한다.
+    이름이 다른 경우(락카 양도) 기존 회원을 회수 처리하고 새 회원에게 락카를 배정한다.
 
     Returns:
-        업데이트된 기존 레코드 수
+        업데이트된 레코드 수
     """
     expiry_by_num: dict[int, LockerRecord] = {
         r.locker_number: r for r in locker_rows if r.locker_number > 0
     }
 
     existing = load_records()
-    existing_nums = {r.locker_number for r in existing if r.locker_number > 0}
-
     updated = 0
     cleared = 0
+    claimed: set[int] = set()  # 이름까지 일치해 처리 완료된 락카번호
+
+    # 1차 패스 — 기존 레코드 처리
     patched: list[LockerRecord] = []
     for rec in existing:
         if rec.locker_number > 0 and rec.locker_number in expiry_by_num:
-            # 브로제이에 여전히 배정 중 → 만료일 업데이트
             src = expiry_by_num[rec.locker_number]
-            patched.append(dc_replace(
-                rec,
-                locker_expiry=src.locker_expiry,
-                start_date=src.start_date or rec.start_date,
-            ))
-            updated += 1
+            if rec.member_name.strip() == src.member_name.strip():
+                # 동일 회원 → 만료일·홀딩 업데이트
+                patched.append(dc_replace(
+                    rec,
+                    locker_expiry=src.locker_expiry,
+                    is_holding=src.is_holding,
+                    start_date=src.start_date or rec.start_date,
+                ))
+                updated += 1
+                claimed.add(rec.locker_number)
+            else:
+                # 락카 번호는 같지만 회원이 바뀜 → 기존 회원 회수
+                patched.append(dc_replace(rec, locker_number=0, has_key=False, locker_expiry=None))
+                cleared += 1
         elif rec.locker_number > 0:
-            # 브로제이에서 사라짐 = 회수 처리
-            patched.append(dc_replace(
-                rec,
-                locker_number=0,
-                has_key=False,
-                locker_expiry=None,
-            ))
+            # 브로제이에서 사라짐 → 회수
+            patched.append(dc_replace(rec, locker_number=0, has_key=False, locker_expiry=None))
             cleared += 1
         else:
             patched.append(rec)
 
-    # 기존 DB에 없는 락카 전용 회원 추가
+    # 2차 패스 — claimed에 없는 락카번호: 새 배정 또는 회원 교체
     for num, src in expiry_by_num.items():
-        if num not in existing_nums:
+        if num in claimed:
+            continue
+        # 이름으로 기존 레코드(locker=0) 찾아 락카 배정
+        matched_idx = next(
+            (i for i, p in enumerate(patched)
+             if p.member_name.strip() == src.member_name.strip() and p.locker_number == 0),
+            None,
+        )
+        if matched_idx is not None:
+            patched[matched_idx] = dc_replace(
+                patched[matched_idx],
+                locker_number=src.locker_number,
+                has_key=True,
+                locker_expiry=src.locker_expiry,
+                is_holding=src.is_holding,
+            )
+            updated += 1
+        else:
+            # DB에 없는 회원(락카 전용) → 신규 추가
             patched.append(src)
 
     save_records(patched)
