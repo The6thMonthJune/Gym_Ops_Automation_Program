@@ -17,7 +17,9 @@ from src.config.settings import (
     _KEY_APARTMENT_COMPLEXES,
     _KEY_BROJ_PASSWORD,
     _KEY_BROJ_USERNAME,
+    _KEY_CONSULT_SPREADSHEET_ID,
     _KEY_EXPENSE_DAILY_SHEET,
+    _KEY_GOOGLE_CREDENTIALS_PATH,
     _KEY_NATEON_WEBHOOK_URL,
     _KEY_PHONE_IP,
     _KEY_SMS_GATEWAY_PASSWORD,
@@ -96,6 +98,18 @@ class SettingsDialog(QDialog):
         self.broj_password_input.setPlaceholderText("브로제이 비밀번호")
         form.addRow("브로제이 비밀번호:", self.broj_password_input)
 
+        self.consult_sheet_id_input = QLineEdit()
+        self.consult_sheet_id_input.setPlaceholderText(
+            "구글 시트 URL의 /d/ 뒤 문자열"
+        )
+        form.addRow("상담관리 시트 ID:", self.consult_sheet_id_input)
+
+        self.google_creds_path_input = QLineEdit()
+        self.google_creds_path_input.setPlaceholderText(
+            "Google credentials.json 파일 경로 (없으면 %APPDATA%\\리와인드자동화\\google_credentials.json)"
+        )
+        form.addRow("Google 인증 파일 경로:", self.google_creds_path_input)
+
         layout.addLayout(form)
 
         # 아파트 단지 목록 편집
@@ -149,6 +163,8 @@ class SettingsDialog(QDialog):
         self.sms_test_phone_input.setText(settings.get(_KEY_SMS_TEST_PHONE, ""))
         self.broj_username_input.setText(settings.get(_KEY_BROJ_USERNAME, ""))
         self.broj_password_input.setText(settings.get(_KEY_BROJ_PASSWORD, ""))
+        self.consult_sheet_id_input.setText(settings.get(_KEY_CONSULT_SPREADSHEET_ID, ""))
+        self.google_creds_path_input.setText(settings.get(_KEY_GOOGLE_CREDENTIALS_PATH, ""))
         self._apt_list.clear()
         for apt in settings.get(_KEY_APARTMENT_COMPLEXES, []):
             self._apt_list.addItem(apt)
@@ -181,6 +197,8 @@ class SettingsDialog(QDialog):
         settings[_KEY_SMS_TEST_PHONE] = self.sms_test_phone_input.text().strip()
         settings[_KEY_BROJ_USERNAME] = self.broj_username_input.text().strip()
         settings[_KEY_BROJ_PASSWORD] = self.broj_password_input.text()
+        settings[_KEY_CONSULT_SPREADSHEET_ID] = self.consult_sheet_id_input.text().strip()
+        settings[_KEY_GOOGLE_CREDENTIALS_PATH] = self.google_creds_path_input.text().strip()
         settings[_KEY_APARTMENT_COMPLEXES] = [
             self._apt_list.item(i).text() for i in range(self._apt_list.count())
         ]

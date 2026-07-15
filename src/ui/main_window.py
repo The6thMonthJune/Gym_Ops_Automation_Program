@@ -46,7 +46,6 @@ from src.services.nateon_service import send_webhook
 from src.services.schedule_service import HolidayNotificationScheduler, SalesReportScheduler
 
 _NAVY = "#1E2D3D"
-_WHITE = "#FFFFFF"
 _BG = "#F3F4F6"
 
 APP_QSS = """
@@ -184,27 +183,30 @@ class _SlimFileRow(QFrame):
 class _BigBtn(QFrame):
     clicked = Signal()
 
-    def __init__(self, emoji: str, text: str, bg: str, hover: str, parent=None) -> None:
+    def __init__(self, emoji: str, text: str, bg: str, hover: str, height: int = 90, parent=None) -> None:
         super().__init__(parent)
         self._bg = bg
         self._hover = hover
-        self.setFixedHeight(90)
+        self.setFixedHeight(height)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self._paint(bg)
 
+        font_size = 13 if height < 80 else 14
+        emoji_size = 18 if height < 80 else 22
+
         lay = QVBoxLayout()
         lay.setAlignment(Qt.AlignCenter)
-        lay.setSpacing(8)
-        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setSpacing(6)
+        lay.setContentsMargins(6, 6, 6, 6)
 
         em = QLabel(emoji)
         em.setAlignment(Qt.AlignCenter)
-        em.setStyleSheet("font-size: 22px; background: transparent; border: none;")
+        em.setStyleSheet(f"font-size: {emoji_size}px; background: transparent; border: none;")
 
         tx = QLabel(text)
         tx.setAlignment(Qt.AlignCenter)
-        tx.setStyleSheet("color: white; font-size: 14px; font-weight: 700; background: transparent; border: none;")
+        tx.setStyleSheet(f"color: white; font-size: {font_size}px; font-weight: 700; background: transparent; border: none;")
 
         lay.addWidget(em)
         lay.addWidget(tx)
@@ -252,6 +254,8 @@ class MainWindow(QMainWindow):
         timer.timeout.connect(self._check_date_change)
         timer.start(60_000)
         QTimer.singleShot(2000, self._check_monthly_sheet)
+        QTimer.singleShot(1500, self._do_daily_consultation_rollover)
+        QTimer.singleShot(3000, self._refresh_visitor_panel)
 
         self._scheduler = SalesReportScheduler(self)
         self._scheduler.send_triggered.connect(self._auto_send_sales_report)
@@ -280,6 +284,7 @@ class MainWindow(QMainWindow):
         body_lay.setSpacing(12)
         body_lay.addWidget(self._build_file_section())
         body_lay.addWidget(self._build_sales_card())
+        body_lay.addWidget(self._build_visitor_panel())
         body_lay.addWidget(self._build_shortcuts())
         body_lay.addStretch()
         body.setLayout(body_lay)
@@ -380,25 +385,6 @@ class MainWindow(QMainWindow):
         row2.addWidget(total_frame)
         lay.addLayout(row2)
 
-        # 버튼 행
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
-        _btn_style = """
-            QPushButton { background: #F3F4F6; color: #374151; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; }
-            QPushButton:hover { background: #E5E7EB; }
-        """
-        copy_btn = QPushButton("📋  보고 문구 복사")
-        copy_btn.setFixedHeight(36)
-        copy_btn.setStyleSheet(_btn_style)
-        copy_btn.clicked.connect(self._copy_report)
-        member_btn = QPushButton("👥  회원 현황 보고")
-        member_btn.setFixedHeight(36)
-        member_btn.setStyleSheet(_btn_style)
-        member_btn.clicked.connect(self._copy_member_report)
-        btn_row.addWidget(copy_btn)
-        btn_row.addWidget(member_btn)
-        lay.addLayout(btn_row)
-
         return _shadow_card(lay)
 
     def _make_stat_frame(self, label: str, is_total: bool = False) -> tuple[QFrame, QLabel]:
@@ -444,74 +430,126 @@ class MainWindow(QMainWindow):
         )
         lay.addWidget(lbl)
 
+        # Row 1: 매출 입력 + 지출 입력 (big, h=64)
         row1 = QHBoxLayout()
         row1.setSpacing(10)
-        pay_btn = _BigBtn("💳", "매출 입력", "#3B82F6", "#2563EB")
+        pay_btn = _BigBtn("💳", "매출 입력", "#3B82F6", "#2563EB", height=64)
         pay_btn.clicked.connect(self._open_payment)
-        exp_btn = _BigBtn("🧾", "지출 입력", "#F59E0B", "#D97706")
+        exp_btn = _BigBtn("🧾", "지출 입력", "#F59E0B", "#D97706", height=64)
         exp_btn.clicked.connect(self._open_expense)
         row1.addWidget(pay_btn)
         row1.addWidget(exp_btn)
         lay.addLayout(row1)
 
+        # Row 2: 내역 조회 + 락카 현황 + 상담 입력 (medium, h=56)
         row2 = QHBoxLayout()
         row2.setSpacing(10)
-        hist_btn = _BigBtn("📋", "내역 조회", "#8B5CF6", "#7C3AED")
+        hist_btn = _BigBtn("📋", "내역 조회", "#8B5CF6", "#7C3AED", height=56)
         hist_btn.clicked.connect(self._open_entry_viewer)
-        locker_btn = _BigBtn("🔑", "락카 현황", "#10B981", "#059669")
+        locker_btn = _BigBtn("🔑", "락카 현황", "#10B981", "#059669", height=56)
         locker_btn.clicked.connect(self._open_locker_dialog)
+        consult_btn = _BigBtn("💬", "상담 입력", "#16A34A", "#15803D", height=56)
+        consult_btn.clicked.connect(self._open_consultation)
         row2.addWidget(hist_btn)
         row2.addWidget(locker_btn)
+        row2.addWidget(consult_btn)
         lay.addLayout(row2)
 
-        _slim_style = """
+        # Row 3: slim — 회원 DB + 락카 DB 동기화 + 실장 기능
+        _slim_gray = """
             QPushButton { background: #F3F4F6; color: #374151; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; }
             QPushButton:hover { background: #E5E7EB; }
         """
-        db_btn = QPushButton("🔄  회원 DB 업데이트")
+        _slim_navy = """
+            QPushButton { background: #1B2B3E; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; }
+            QPushButton:hover { background: #2D3F54; }
+        """
+        row3 = QHBoxLayout()
+        row3.setSpacing(8)
+        db_btn = QPushButton("🔄  회원 DB")
         db_btn.setFixedHeight(36)
-        db_btn.setStyleSheet(_slim_style)
+        db_btn.setStyleSheet(_slim_gray)
         db_btn.clicked.connect(self._update_member_db)
-        lay.addWidget(db_btn)
-
-        report_btn = QPushButton("📊  유입경로 보고서 생성")
-        report_btn.setFixedHeight(36)
-        report_btn.setStyleSheet(_slim_style)
-        report_btn.clicked.connect(self._generate_lead_report)
-        lay.addWidget(report_btn)
-
-        expiry_btn = QPushButton("📆  만료 임박 회원 조회")
-        expiry_btn.setFixedHeight(36)
-        expiry_btn.setStyleSheet(_slim_style)
-        expiry_btn.clicked.connect(self._open_membership_expiry)
-        lay.addWidget(expiry_btn)
-
-        countdown_btn = QPushButton("🎯  월 목표 카운트다운")
-        countdown_btn.setFixedHeight(36)
-        countdown_btn.setStyleSheet(_slim_style)
-        countdown_btn.clicked.connect(self._open_countdown)
-        lay.addWidget(countdown_btn)
-
         sync_btn = QPushButton("🔄  락카 DB 동기화")
         sync_btn.setFixedHeight(36)
-        sync_btn.setStyleSheet(_slim_style)
+        sync_btn.setStyleSheet(_slim_gray)
         sync_btn.clicked.connect(self._sync_locker_db)
-        lay.addWidget(sync_btn)
-
-        locker_sms_btn = QPushButton("📱  만료 락카 문자 발송")
-        locker_sms_btn.setFixedHeight(36)
-        locker_sms_btn.setStyleSheet(_slim_style)
-        locker_sms_btn.clicked.connect(self._open_locker_sms)
-        lay.addWidget(locker_sms_btn)
-
-        foreign_btn = QPushButton("🌍  외국인 회원 관리")
-        foreign_btn.setFixedHeight(36)
-        foreign_btn.setStyleSheet(_slim_style)
-        foreign_btn.clicked.connect(self._open_foreign_member)
-        lay.addWidget(foreign_btn)
+        mgr_btn = QPushButton("⚙  실장 기능")
+        mgr_btn.setFixedHeight(36)
+        mgr_btn.setStyleSheet(_slim_navy)
+        mgr_btn.clicked.connect(self._open_manager_dialog)
+        row3.addWidget(db_btn)
+        row3.addWidget(sync_btn)
+        row3.addWidget(mgr_btn)
+        lay.addLayout(row3)
 
         widget.setLayout(lay)
         return widget
+
+    def _build_visitor_panel(self) -> QFrame:
+        lay = QVBoxLayout()
+        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setSpacing(8)
+
+        header = QHBoxLayout()
+        header_lbl = QLabel("오늘 방문예정")
+        header_lbl.setStyleSheet(
+            "color: #111827; font-size: 14px; font-weight: 700; background: transparent; border: none;"
+        )
+        self._visitor_badge = QLabel("—")
+        self._visitor_badge.setStyleSheet(
+            "background: #16A34A; color: white; font-size: 11px; font-weight: 700; "
+            "border-radius: 8px; padding: 2px 8px;"
+        )
+        header.addWidget(header_lbl)
+        header.addStretch()
+        header.addWidget(self._visitor_badge)
+        lay.addLayout(header)
+
+        self._visitor_list_widget = QWidget()
+        self._visitor_list_widget.setStyleSheet("background: transparent;")
+        self._visitor_list_lay = QVBoxLayout()
+        self._visitor_list_lay.setContentsMargins(0, 0, 0, 0)
+        self._visitor_list_lay.setSpacing(4)
+        placeholder = QLabel("스프레드시트 연결 후 표시됩니다.")
+        placeholder.setStyleSheet(
+            "color: #9CA3AF; font-size: 12px; background: transparent; border: none;"
+        )
+        self._visitor_list_lay.addWidget(placeholder)
+        self._visitor_list_widget.setLayout(self._visitor_list_lay)
+        lay.addWidget(self._visitor_list_widget)
+
+        return _shadow_card(lay)
+
+    def _refresh_visitor_panel(self) -> None:
+        from src.config.settings import get_consult_spreadsheet_id, get_google_credentials_path
+        sid = get_consult_spreadsheet_id()
+        if not sid:
+            return
+        try:
+            from src.services.consultation_service import get_todays_visitors
+            visitors = get_todays_visitors(sid, get_google_credentials_path())
+            while self._visitor_list_lay.count():
+                child = self._visitor_list_lay.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+            if visitors:
+                self._visitor_badge.setText(f"{len(visitors)}명")
+                for v in visitors:
+                    row_lbl = QLabel(f"👤 {v['name']}  {v['phone']}")
+                    row_lbl.setStyleSheet(
+                        "color: #374151; font-size: 12px; background: transparent; border: none;"
+                    )
+                    self._visitor_list_lay.addWidget(row_lbl)
+            else:
+                self._visitor_badge.setText("0명")
+                empty_lbl = QLabel("방문 예정 회원이 없습니다.")
+                empty_lbl.setStyleSheet(
+                    "color: #9CA3AF; font-size: 12px; background: transparent; border: none;"
+                )
+                self._visitor_list_lay.addWidget(empty_lbl)
+        except Exception:
+            pass
 
     # ── 드래그 앤 드롭 (데일리 파일) ──────────────────────────────
 
@@ -608,6 +646,8 @@ class MainWindow(QMainWindow):
         if today != self._last_checked_date:
             self._last_checked_date = today
             self._auto_setup_today_file()
+            self._do_daily_consultation_rollover()
+            self._refresh_visitor_panel()
         if today.month != self._last_checked_month:
             self._last_checked_month = today.month
             self._check_monthly_sheet()
@@ -941,6 +981,25 @@ class MainWindow(QMainWindow):
     def _open_foreign_member(self) -> None:
         from src.ui.foreign_member_dialog import ForeignMemberDialog
         ForeignMemberDialog(parent=self).exec()
+
+    def _open_consultation(self) -> None:
+        from src.ui.consultation_dialog import ConsultationDialog
+        ConsultationDialog(parent=self).exec()
+
+    def _open_manager_dialog(self) -> None:
+        from src.ui.manager_dialog import ManagerDialog
+        ManagerDialog(daily_file=self._path_daily, parent=self).exec()
+
+    def _do_daily_consultation_rollover(self) -> None:
+        from src.config.settings import get_consult_spreadsheet_id, get_google_credentials_path
+        sid = get_consult_spreadsheet_id()
+        if not sid:
+            return
+        try:
+            from src.services.consultation_service import do_daily_rollover
+            do_daily_rollover(sid, get_google_credentials_path())
+        except Exception:
+            pass
 
     def _prompt_holiday_notification(self) -> None:
         from src.ui.holiday_notification_dialog import HolidayNotificationDialog

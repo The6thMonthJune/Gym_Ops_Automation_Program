@@ -1,5 +1,5 @@
 {
-  "version": "2.11",
+  "version": "2.14",
   "children": [
     {
       "type": "frame",
@@ -71,10 +71,9 @@
               "width": "fill_container",
               "fill": "#FFFFFF",
               "cornerRadius": 8,
-              "stroke": {
-                "thickness": 1,
-                "fill": "#E5E7EB"
-              },
+              "stroke": "#E5E7EB",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
               "layout": "vertical",
               "gap": 8,
               "padding": [
@@ -108,10 +107,9 @@
                       "height": 34,
                       "fill": "#F4F5F7",
                       "cornerRadius": 6,
-                      "stroke": {
-                        "thickness": 1,
-                        "fill": "#D1D5DB"
-                      },
+                      "stroke": "#D1D5DB",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
                       "padding": [
                         0,
                         12
@@ -586,10 +584,9 @@
                   "height": 38,
                   "fill": "#F4F5F7",
                   "cornerRadius": 6,
-                  "stroke": {
-                    "thickness": 1,
-                    "fill": "#D1D5DB"
-                  },
+                  "stroke": "#D1D5DB",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
                   "gap": 6,
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -623,10 +620,9 @@
                   "height": 38,
                   "fill": "#F4F5F7",
                   "cornerRadius": 6,
-                  "stroke": {
-                    "thickness": 1,
-                    "fill": "#D1D5DB"
-                  },
+                  "stroke": "#D1D5DB",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
                   "justifyContent": "center",
                   "alignItems": "center",
                   "children": [
@@ -666,10 +662,9 @@
       "height": 76,
       "fill": "#DCFCE7",
       "cornerRadius": 4,
-      "stroke": {
-        "thickness": 1,
-        "fill": "#BBF7D0"
-      },
+      "stroke": "#BBF7D0",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
       "layout": "vertical",
       "gap": 2,
       "padding": [
@@ -758,13 +753,13 @@
               "height": 1
             },
             {
-              "type": "icon_font",
+              "type": "icon",
               "id": "SB69w",
               "name": "tbSettings",
               "width": 18,
               "height": 18,
-              "iconFontName": "settings",
-              "iconFontFamily": "lucide",
+              "icon": "settings",
+              "library": "lucide",
               "fill": "#9CA3AF"
             }
           ]
@@ -808,13 +803,13 @@
               "alignItems": "center",
               "children": [
                 {
-                  "type": "icon_font",
+                  "type": "icon",
                   "id": "R41UVQ",
                   "name": "dailyIcon",
                   "width": 14,
                   "height": 14,
-                  "iconFontName": "file-spreadsheet",
-                  "iconFontFamily": "lucide",
+                  "icon": "file-spreadsheet",
+                  "library": "lucide",
                   "fill": "#6B7280"
                 },
                 {
@@ -862,13 +857,13 @@
               "alignItems": "center",
               "children": [
                 {
-                  "type": "icon_font",
+                  "type": "icon",
                   "id": "AwF7D",
                   "name": "totalIcon",
                   "width": 14,
                   "height": 14,
-                  "iconFontName": "file-spreadsheet",
-                  "iconFontFamily": "lucide",
+                  "icon": "file-spreadsheet",
+                  "library": "lucide",
                   "fill": "#6B7280"
                 },
                 {
@@ -970,13 +965,13 @@
                       "alignItems": "center",
                       "children": [
                         {
-                          "type": "icon_font",
+                          "type": "icon",
                           "id": "xwf8f",
                           "name": "refreshIcon",
                           "width": 14,
                           "height": 14,
-                          "iconFontName": "refresh-cw",
-                          "iconFontFamily": "lucide",
+                          "icon": "refresh-cw",
+                          "library": "lucide",
                           "fill": "#6B7280"
                         }
                       ]
@@ -1146,13 +1141,13 @@
                   "alignItems": "center",
                   "children": [
                     {
-                      "type": "icon_font",
+                      "type": "icon",
                       "id": "qXCuC",
                       "name": "copyBtnIcon",
                       "width": 14,
                       "height": 14,
-                      "iconFontName": "clipboard",
-                      "iconFontFamily": "lucide",
+                      "icon": "clipboard",
+                      "library": "lucide",
                       "fill": "#374151"
                     },
                     {
@@ -1200,13 +1195,13 @@
                   "alignItems": "center",
                   "children": [
                     {
-                      "type": "icon_font",
+                      "type": "icon",
                       "id": "nC8V2",
                       "name": "payIcon",
                       "width": 24,
                       "height": 24,
-                      "iconFontName": "credit-card",
-                      "iconFontFamily": "lucide",
+                      "icon": "credit-card",
+                      "library": "lucide",
                       "fill": "#FFFFFF"
                     },
                     {
@@ -1214,7 +1209,7 @@
                       "id": "hzyX3",
                       "name": "payLabel",
                       "fill": "#FFFFFF",
-                      "content": "결제 입력",
+                      "content": "매출 입력",
                       "fontFamily": "Inter",
                       "fontSize": 14,
                       "fontWeight": "700"
@@ -1235,13 +1230,13 @@
                   "alignItems": "center",
                   "children": [
                     {
-                      "type": "icon_font",
+                      "type": "icon",
                       "id": "hIQib",
                       "name": "expIcon",
                       "width": 24,
                       "height": 24,
-                      "iconFontName": "receipt",
-                      "iconFontFamily": "lucide",
+                      "icon": "receipt",
+                      "library": "lucide",
                       "fill": "#FFFFFF"
                     },
                     {
@@ -1267,41 +1262,6 @@
               "children": [
                 {
                   "type": "frame",
-                  "id": "oDaLj",
-                  "name": "lockerBtn",
-                  "width": "fill_container",
-                  "height": 90,
-                  "fill": "#10B981",
-                  "cornerRadius": 12,
-                  "layout": "vertical",
-                  "gap": 8,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon_font",
-                      "id": "WRq4N",
-                      "name": "lockerIcon",
-                      "width": 24,
-                      "height": 24,
-                      "iconFontName": "key",
-                      "iconFontFamily": "lucide",
-                      "fill": "#FFFFFF"
-                    },
-                    {
-                      "type": "text",
-                      "id": "Y4lKj",
-                      "name": "lockerLabel",
-                      "fill": "#FFFFFF",
-                      "content": "락카 현황",
-                      "fontFamily": "Inter",
-                      "fontSize": 14,
-                      "fontWeight": "700"
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
                   "id": "n7H7y",
                   "name": "histBtn",
                   "width": "fill_container",
@@ -1314,13 +1274,13 @@
                   "alignItems": "center",
                   "children": [
                     {
-                      "type": "icon_font",
+                      "type": "icon",
                       "id": "imFh3",
                       "name": "histIcon",
                       "width": 24,
                       "height": 24,
-                      "iconFontName": "list",
-                      "iconFontFamily": "lucide",
+                      "icon": "list",
+                      "library": "lucide",
                       "fill": "#FFFFFF"
                     },
                     {
@@ -1334,6 +1294,41 @@
                       "fontWeight": "700"
                     }
                   ]
+                },
+                {
+                  "type": "frame",
+                  "id": "oDaLj",
+                  "name": "lockerBtn",
+                  "width": "fill_container",
+                  "height": 90,
+                  "fill": "#10B981",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 8,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "WRq4N",
+                      "name": "lockerIcon",
+                      "width": 24,
+                      "height": 24,
+                      "icon": "key",
+                      "library": "lucide",
+                      "fill": "#FFFFFF"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Y4lKj",
+                      "name": "lockerLabel",
+                      "fill": "#FFFFFF",
+                      "content": "락카 현황",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "700"
+                    }
+                  ]
                 }
               ]
             }
@@ -1341,5 +1336,6 @@
         }
       ]
     }
-  ]
+  ],
+  "fileToken": "323ef711-b5c7-4bae-82a8-f7eed8bce832"
 }

@@ -24,6 +24,8 @@ _KEY_SMS_GATEWAY_PASSWORD = "sms_gateway_password"
 _KEY_SMS_TEST_PHONE = "sms_test_phone"
 _KEY_BROJ_USERNAME = "broj_username"
 _KEY_BROJ_PASSWORD = "broj_password"
+_KEY_CONSULT_SPREADSHEET_ID = "consult_spreadsheet_id"
+_KEY_GOOGLE_CREDENTIALS_PATH = "google_credentials_path"
 
 
 def load_settings() -> dict:
@@ -83,6 +85,14 @@ def get_broj_credentials() -> tuple[str, str]:
     """(브로제이 아이디, 비밀번호) 반환. 미설정 시 빈 문자열."""
     s = load_settings()
     return s.get(_KEY_BROJ_USERNAME, "") or "", s.get(_KEY_BROJ_PASSWORD, "") or ""
+
+
+def get_consult_spreadsheet_id() -> str:
+    return load_settings().get(_KEY_CONSULT_SPREADSHEET_ID, "") or ""
+
+
+def get_google_credentials_path() -> str:
+    return load_settings().get(_KEY_GOOGLE_CREDENTIALS_PATH, "") or ""
 
 
 def get_monthly_targets() -> tuple[int, int]:
