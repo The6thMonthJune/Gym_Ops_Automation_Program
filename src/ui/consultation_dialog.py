@@ -26,8 +26,10 @@ from src.config.settings import (
 from src.services.consultation_service import (
     append_daily_entry,
     build_kakao_message,
+    find_existing_entry,
     get_client,
     get_or_create_month_sheet,
+    update_entry_notes,
 )
 
 _BTN = """
@@ -198,9 +200,18 @@ class ConsultationDialog(QDialog):
             client = get_client(get_google_credentials_path())
             today = date.today()
             ws = get_or_create_month_sheet(client, spreadsheet_id, today.year, today.month)
-            append_daily_entry(ws, entry)
 
-            self._message = build_kakao_message(entry)
+            existing_row, existing_notes = find_existing_entry(ws, entry["name"], entry["phone"])
+            is_update = existing_row is not None
+
+            if is_update:
+                update_entry_notes(ws, existing_row, existing_notes, entry["notes"])
+                result_msg = f"{entry['name']} 님의 기존 상담 내용이 업데이트되었습니다."
+            else:
+                append_daily_entry(ws, entry)
+                result_msg = f"{entry['name']} 님의 상담이 스프레드시트에 저장되었습니다."
+
+            self._message = build_kakao_message(entry, is_update=is_update)
             self._msg_preview.setText(self._message)
             self._info_btn.setEnabled(True)
             self._staff_btn.setEnabled(True)
@@ -208,8 +219,7 @@ class ConsultationDialog(QDialog):
 
             QMessageBox.information(
                 self, "저장 완료",
-                f"{entry['name']} 님의 상담이 스프레드시트에 저장되었습니다.\n"
-                "아래에서 카톡 발송을 진행하세요."
+                f"{result_msg}\n아래에서 카톡 발송을 진행하세요."
             )
         except FileNotFoundError as exc:
             QMessageBox.warning(self, "인증 파일 없음", str(exc))

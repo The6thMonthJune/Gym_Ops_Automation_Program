@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QFormLayout,
     QHBoxLayout,
@@ -15,12 +16,18 @@ from PySide6.QtWidgets import (
 
 from src.config.settings import (
     _KEY_APARTMENT_COMPLEXES,
+    _KEY_AUTO_TRANSFER_ROLLOVER,
     _KEY_BROJ_PASSWORD,
     _KEY_BROJ_USERNAME,
     _KEY_CONSULT_SPREADSHEET_ID,
+    _KEY_DEFAULT_MANAGER,
+    _KEY_DEFAULT_PART,
     _KEY_EXPENSE_DAILY_SHEET,
+    _KEY_GEMINI_API_KEY,
     _KEY_GOOGLE_CREDENTIALS_PATH,
     _KEY_NATEON_WEBHOOK_URL,
+    _KEY_NEW_DB_SHEET_NAME,
+    _KEY_NEW_DB_SPREADSHEET_ID,
     _KEY_PHONE_IP,
     _KEY_SMS_GATEWAY_PASSWORD,
     _KEY_SMS_GATEWAY_PORT,
@@ -110,7 +117,31 @@ class SettingsDialog(QDialog):
         )
         form.addRow("Google 인증 파일 경로:", self.google_creds_path_input)
 
+        self.gemini_api_key_input = QLineEdit()
+        self.gemini_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.gemini_api_key_input.setPlaceholderText("AIza...")
+        form.addRow("Gemini API 키:", self.gemini_api_key_input)
+
+        self.new_db_spreadsheet_id_input = QLineEdit()
+        self.new_db_spreadsheet_id_input.setPlaceholderText("신규DB관리 시트 URL의 /d/ 뒤 문자열")
+        form.addRow("신규DB 시트 ID:", self.new_db_spreadsheet_id_input)
+
+        self.new_db_sheet_name_input = QLineEdit()
+        self.new_db_sheet_name_input.setPlaceholderText("예: 26/07월")
+        form.addRow("신규DB 시트명:", self.new_db_sheet_name_input)
+
+        self.default_part_input = QLineEdit()
+        self.default_part_input.setPlaceholderText("기본값: 실장")
+        form.addRow("기본 파트:", self.default_part_input)
+
+        self.default_manager_input = QLineEdit()
+        self.default_manager_input.setPlaceholderText("기본값: 실장")
+        form.addRow("기본 담당자:", self.default_manager_input)
+
         layout.addLayout(form)
+
+        self.auto_transfer_check = QCheckBox("데일리 롤오버 시 신규DB 자동 이관 실행")
+        layout.addWidget(self.auto_transfer_check)
 
         # 아파트 단지 목록 편집
         layout.addWidget(QLabel("아파트 단지 목록 (신규 회원 거주지 선택에 사용)"))
@@ -165,6 +196,12 @@ class SettingsDialog(QDialog):
         self.broj_password_input.setText(settings.get(_KEY_BROJ_PASSWORD, ""))
         self.consult_sheet_id_input.setText(settings.get(_KEY_CONSULT_SPREADSHEET_ID, ""))
         self.google_creds_path_input.setText(settings.get(_KEY_GOOGLE_CREDENTIALS_PATH, ""))
+        self.gemini_api_key_input.setText(settings.get(_KEY_GEMINI_API_KEY, ""))
+        self.new_db_spreadsheet_id_input.setText(settings.get(_KEY_NEW_DB_SPREADSHEET_ID, ""))
+        self.new_db_sheet_name_input.setText(settings.get(_KEY_NEW_DB_SHEET_NAME, ""))
+        self.default_part_input.setText(settings.get(_KEY_DEFAULT_PART, ""))
+        self.default_manager_input.setText(settings.get(_KEY_DEFAULT_MANAGER, ""))
+        self.auto_transfer_check.setChecked(bool(settings.get(_KEY_AUTO_TRANSFER_ROLLOVER, False)))
         self._apt_list.clear()
         for apt in settings.get(_KEY_APARTMENT_COMPLEXES, []):
             self._apt_list.addItem(apt)
@@ -199,6 +236,12 @@ class SettingsDialog(QDialog):
         settings[_KEY_BROJ_PASSWORD] = self.broj_password_input.text()
         settings[_KEY_CONSULT_SPREADSHEET_ID] = self.consult_sheet_id_input.text().strip()
         settings[_KEY_GOOGLE_CREDENTIALS_PATH] = self.google_creds_path_input.text().strip()
+        settings[_KEY_GEMINI_API_KEY] = self.gemini_api_key_input.text().strip()
+        settings[_KEY_NEW_DB_SPREADSHEET_ID] = self.new_db_spreadsheet_id_input.text().strip()
+        settings[_KEY_NEW_DB_SHEET_NAME] = self.new_db_sheet_name_input.text().strip()
+        settings[_KEY_DEFAULT_PART] = self.default_part_input.text().strip()
+        settings[_KEY_DEFAULT_MANAGER] = self.default_manager_input.text().strip()
+        settings[_KEY_AUTO_TRANSFER_ROLLOVER] = self.auto_transfer_check.isChecked()
         settings[_KEY_APARTMENT_COMPLEXES] = [
             self._apt_list.item(i).text() for i in range(self._apt_list.count())
         ]

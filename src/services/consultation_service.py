@@ -177,12 +177,36 @@ def do_daily_rollover(
     return len(data_rows)
 
 
-def build_kakao_message(entry: dict) -> str:
+def find_existing_entry(ws: gspread.Worksheet, name: str, phone: str) -> tuple[int | None, str]:
+    """성함+전화번호로 기존 상담 행을 찾는다. (데일리 → 월별 순서)
+    Returns (row_number, existing_notes) or (None, "")
+    """
+    daily_data = ws.get(f"B{_DAILY_DATA_START}:I{_DAILY_DATA_END}") or []
+    for i, row in enumerate(daily_data):
+        if len(row) >= 3 and str(row[1]).strip() == name and str(row[2]).strip() == phone:
+            return _DAILY_DATA_START + i, str(row[7]).strip() if len(row) > 7 else ""
+
+    monthly_data = ws.get(f"B{_MONTHLY_DATA_START}:I1000") or []
+    for i, row in enumerate(monthly_data):
+        if len(row) >= 3 and str(row[1]).strip() == name and str(row[2]).strip() == phone:
+            return _MONTHLY_DATA_START + i, str(row[7]).strip() if len(row) > 7 else ""
+
+    return None, ""
+
+
+def update_entry_notes(ws: gspread.Worksheet, row_num: int, existing_notes: str, new_notes: str) -> None:
+    """기존 행의 내용(I열)에 새 내용을 줄바꿈으로 이어붙인다."""
+    merged = f"{existing_notes}\n{new_notes}" if existing_notes else new_notes
+    ws.update(f"I{row_num}", [[merged]])
+
+
+def build_kakao_message(entry: dict, is_update: bool = False) -> str:
     """상담 입력 내용을 카톡 보고 문구로 포맷한다."""
     today = date.today().strftime("%m/%d")
     category = entry.get("category", "")
+    action = "상담 업데이트" if is_update else "상담 발생"
     lines = [
-        f"📋 상담 발생 ({today})",
+        f"📋 {action} ({today})",
         "─" * 16,
         f"👤 {entry.get('name', '')}  |  {entry.get('phone', '')}",
     ]

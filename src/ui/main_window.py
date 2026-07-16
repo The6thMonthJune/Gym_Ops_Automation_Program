@@ -991,13 +991,53 @@ class MainWindow(QMainWindow):
         ManagerDialog(daily_file=self._path_daily, parent=self).exec()
 
     def _do_daily_consultation_rollover(self) -> None:
-        from src.config.settings import get_consult_spreadsheet_id, get_google_credentials_path
+        from src.config.settings import (
+            get_auto_transfer_rollover, get_consult_spreadsheet_id, get_google_credentials_path,
+        )
         sid = get_consult_spreadsheet_id()
         if not sid:
             return
         try:
             from src.services.consultation_service import do_daily_rollover
             do_daily_rollover(sid, get_google_credentials_path())
+        except Exception:
+            pass
+        if get_auto_transfer_rollover():
+            QTimer.singleShot(0, self._auto_transfer_new_member_db)
+
+    def _auto_transfer_new_member_db(self) -> None:
+        from src.config.settings import (
+            get_default_manager, get_default_part, get_gemini_api_key,
+            get_google_credentials_path, get_new_db_sheet_name, get_new_db_spreadsheet_id,
+        )
+        api_key = get_gemini_api_key()
+        new_db_id = get_new_db_spreadsheet_id()
+        new_db_sheet = get_new_db_sheet_name()
+        if not api_key or not new_db_id or not new_db_sheet:
+            return
+        try:
+            from datetime import date
+            from src.services.consultation_service import (
+                _DAILY_DATA_END, _DAILY_DATA_START, _MONTHLY_DATA_START,
+                get_client, get_or_create_month_sheet,
+            )
+            from src.services.new_member_db_service import get_new_db_sheet as _get_ws, transfer_all
+            from src.config.settings import get_consult_spreadsheet_id
+            sid = get_consult_spreadsheet_id()
+            if not sid:
+                return
+            client = get_client(get_google_credentials_path())
+            today = date.today()
+            consult_ws = get_or_create_month_sheet(client, sid, today.year, today.month)
+            new_db_ws = _get_ws(client, new_db_id, new_db_sheet)
+            daily = consult_ws.get(f"B{_DAILY_DATA_START}:I{_DAILY_DATA_END}") or []
+            monthly = consult_ws.get(f"B{_MONTHLY_DATA_START}:I1000") or []
+            rows = [r for r in daily + monthly if any(str(c).strip() for c in r)]
+            defaults = {
+                "part": get_default_part(), "type": "워크인",
+                "manager": get_default_manager(), "counselor": get_default_manager(),
+            }
+            transfer_all(client, consult_ws, new_db_ws, api_key, defaults, rows)
         except Exception:
             pass
 

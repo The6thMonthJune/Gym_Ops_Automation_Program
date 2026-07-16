@@ -26,6 +26,12 @@ _KEY_BROJ_USERNAME = "broj_username"
 _KEY_BROJ_PASSWORD = "broj_password"
 _KEY_CONSULT_SPREADSHEET_ID = "consult_spreadsheet_id"
 _KEY_GOOGLE_CREDENTIALS_PATH = "google_credentials_path"
+_KEY_GEMINI_API_KEY = "gemini_api_key"
+_KEY_NEW_DB_SPREADSHEET_ID = "new_db_spreadsheet_id"
+_KEY_NEW_DB_SHEET_NAME = "new_db_sheet_name"
+_KEY_DEFAULT_PART = "default_part"
+_KEY_DEFAULT_MANAGER = "default_manager"
+_KEY_AUTO_TRANSFER_ROLLOVER = "auto_transfer_on_rollover"
 
 
 def load_settings() -> dict:
@@ -93,6 +99,30 @@ def get_consult_spreadsheet_id() -> str:
 
 def get_google_credentials_path() -> str:
     return load_settings().get(_KEY_GOOGLE_CREDENTIALS_PATH, "") or ""
+
+
+def get_gemini_api_key() -> str:
+    return load_settings().get(_KEY_GEMINI_API_KEY, "") or ""
+
+
+def get_new_db_spreadsheet_id() -> str:
+    return load_settings().get(_KEY_NEW_DB_SPREADSHEET_ID, "") or ""
+
+
+def get_new_db_sheet_name() -> str:
+    return load_settings().get(_KEY_NEW_DB_SHEET_NAME, "") or ""
+
+
+def get_default_part() -> str:
+    return load_settings().get(_KEY_DEFAULT_PART, "실장") or "실장"
+
+
+def get_default_manager() -> str:
+    return load_settings().get(_KEY_DEFAULT_MANAGER, "실장") or "실장"
+
+
+def get_auto_transfer_rollover() -> bool:
+    return bool(load_settings().get(_KEY_AUTO_TRANSFER_ROLLOVER, False))
 
 
 def get_monthly_targets() -> tuple[int, int]:

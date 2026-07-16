@@ -52,6 +52,7 @@ class ManagerDialog(QDialog):
             ("📊  유입경로 보고서 생성", "_lead_report"),
             ("🎯  월 목표 카운트다운", "_countdown"),
             ("📱  만료 락카 문자 발송", "_locker_sms"),
+            ("🤖  신규DB 자동 이관", "_new_member_db"),
         ]
 
         for row_pair in [buttons[i:i+2] for i in range(0, len(buttons), 2)]:
@@ -128,3 +129,7 @@ class ManagerDialog(QDialog):
     def _locker_sms(self) -> None:
         from src.ui.locker_sms_dialog import LockerSmsDialog
         LockerSmsDialog(parent=self).exec()
+
+    def _new_member_db(self) -> None:
+        from src.ui.new_member_db_dialog import NewMemberDbDialog
+        NewMemberDbDialog(parent=self).exec()
