@@ -14,7 +14,7 @@ _COL_NAME = 6   # F열 — 다음 빈 행 탐색 기준
 def _current_month_sheet_name() -> str:
     """현재 달 기준 시트명을 반환한다. 예: '26/07월'"""
     today = date.today()
-    return f"{today.strftime('%y')}/{today.month:02d}월"
+    return f"{today.strftime('%y')}년 {today.month:02d}월"
 
 
 def _find_sheet(ss: gspread.Spreadsheet, configured_name: str) -> gspread.Worksheet:

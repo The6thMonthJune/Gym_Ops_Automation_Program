@@ -41,7 +41,7 @@ def _col_letter(n: int) -> str:
 
 def _current_month_sheet_name() -> str:
     today = date.today()
-    return f"{today.strftime('%y')}/{today.month:02d}월"
+    return f"{today.strftime('%y')}년 {today.month:02d}월"
 
 
 def _find_sheet(ss: gspread.Spreadsheet, configured_name: str) -> gspread.Worksheet:
