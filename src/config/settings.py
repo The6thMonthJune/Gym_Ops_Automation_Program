@@ -32,6 +32,8 @@ _KEY_NEW_DB_SHEET_NAME = "new_db_sheet_name"
 _KEY_DEFAULT_PART = "default_part"
 _KEY_DEFAULT_MANAGER = "default_manager"
 _KEY_AUTO_TRANSFER_ROLLOVER = "auto_transfer_on_rollover"
+_KEY_DAYPASS_DB_SPREADSHEET_ID = "daypass_db_spreadsheet_id"
+_KEY_DAYPASS_DB_SHEET_NAME = "daypass_db_sheet_name"
 
 
 def load_settings() -> dict:
@@ -123,6 +125,14 @@ def get_default_manager() -> str:
 
 def get_auto_transfer_rollover() -> bool:
     return bool(load_settings().get(_KEY_AUTO_TRANSFER_ROLLOVER, False))
+
+
+def get_daypass_db_spreadsheet_id() -> str:
+    return load_settings().get(_KEY_DAYPASS_DB_SPREADSHEET_ID, "") or ""
+
+
+def get_daypass_db_sheet_name() -> str:
+    return load_settings().get(_KEY_DAYPASS_DB_SHEET_NAME, "") or ""
 
 
 def get_monthly_targets() -> tuple[int, int]:

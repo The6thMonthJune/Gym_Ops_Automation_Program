@@ -20,6 +20,8 @@ from src.config.settings import (
     _KEY_BROJ_PASSWORD,
     _KEY_BROJ_USERNAME,
     _KEY_CONSULT_SPREADSHEET_ID,
+    _KEY_DAYPASS_DB_SHEET_NAME,
+    _KEY_DAYPASS_DB_SPREADSHEET_ID,
     _KEY_DEFAULT_MANAGER,
     _KEY_DEFAULT_PART,
     _KEY_EXPENSE_DAILY_SHEET,
@@ -130,6 +132,14 @@ class SettingsDialog(QDialog):
         self.new_db_sheet_name_input.setPlaceholderText("예: 26/07월")
         form.addRow("신규DB 시트명:", self.new_db_sheet_name_input)
 
+        self.daypass_db_spreadsheet_id_input = QLineEdit()
+        self.daypass_db_spreadsheet_id_input.setPlaceholderText("일일권 DB 시트 URL의 /d/ 뒤 문자열")
+        form.addRow("일일권DB 시트 ID:", self.daypass_db_spreadsheet_id_input)
+
+        self.daypass_db_sheet_name_input = QLineEdit()
+        self.daypass_db_sheet_name_input.setPlaceholderText("예: 일일권 DB")
+        form.addRow("일일권DB 시트명:", self.daypass_db_sheet_name_input)
+
         self.default_part_input = QLineEdit()
         self.default_part_input.setPlaceholderText("기본값: 실장")
         form.addRow("기본 파트:", self.default_part_input)
@@ -199,6 +209,8 @@ class SettingsDialog(QDialog):
         self.gemini_api_key_input.setText(settings.get(_KEY_GEMINI_API_KEY, ""))
         self.new_db_spreadsheet_id_input.setText(settings.get(_KEY_NEW_DB_SPREADSHEET_ID, ""))
         self.new_db_sheet_name_input.setText(settings.get(_KEY_NEW_DB_SHEET_NAME, ""))
+        self.daypass_db_spreadsheet_id_input.setText(settings.get(_KEY_DAYPASS_DB_SPREADSHEET_ID, ""))
+        self.daypass_db_sheet_name_input.setText(settings.get(_KEY_DAYPASS_DB_SHEET_NAME, ""))
         self.default_part_input.setText(settings.get(_KEY_DEFAULT_PART, ""))
         self.default_manager_input.setText(settings.get(_KEY_DEFAULT_MANAGER, ""))
         self.auto_transfer_check.setChecked(bool(settings.get(_KEY_AUTO_TRANSFER_ROLLOVER, False)))
@@ -239,6 +251,8 @@ class SettingsDialog(QDialog):
         settings[_KEY_GEMINI_API_KEY] = self.gemini_api_key_input.text().strip()
         settings[_KEY_NEW_DB_SPREADSHEET_ID] = self.new_db_spreadsheet_id_input.text().strip()
         settings[_KEY_NEW_DB_SHEET_NAME] = self.new_db_sheet_name_input.text().strip()
+        settings[_KEY_DAYPASS_DB_SPREADSHEET_ID] = self.daypass_db_spreadsheet_id_input.text().strip()
+        settings[_KEY_DAYPASS_DB_SHEET_NAME] = self.daypass_db_sheet_name_input.text().strip()
         settings[_KEY_DEFAULT_PART] = self.default_part_input.text().strip()
         settings[_KEY_DEFAULT_MANAGER] = self.default_manager_input.text().strip()
         settings[_KEY_AUTO_TRANSFER_ROLLOVER] = self.auto_transfer_check.isChecked()

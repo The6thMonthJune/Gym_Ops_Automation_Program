@@ -135,6 +135,30 @@ class PaymentDialog(QDialog):
         form_group.setLayout(form)
         layout.addWidget(form_group)
 
+        # ── 일일권 DB 추가 정보 (종목=일일권일 때만 표시) ──────────────
+        self._daypass_group = QGroupBox("일일권 DB 추가 정보")
+        dp_form = QFormLayout()
+
+        self._daypass_route_combo = QComboBox()
+        self._daypass_route_combo.addItems(
+            ["네이버", "지인소개", "플레이스", "휴면회원", "간판", "홍보물", "전화"]
+        )
+        dp_form.addRow("방문경로:", self._daypass_route_combo)
+
+        self._daypass_phone_input = QLineEdit()
+        self._daypass_phone_input.setPlaceholderText("010-XXXX-XXXX (선택)")
+        dp_form.addRow("전화번호:", self._daypass_phone_input)
+
+        self._daypass_content_input = QLineEdit()
+        self._daypass_content_input.setPlaceholderText("메모 (선택)")
+        dp_form.addRow("내용:", self._daypass_content_input)
+
+        self._daypass_group.setLayout(dp_form)
+        self._daypass_group.setVisible(False)
+        layout.addWidget(self._daypass_group)
+
+        self.category_combo.currentTextChanged.connect(self._toggle_daypass_group)
+
         # ── 동작 버튼 ────────────────────────────────────────────────
         kakao_button = QPushButton("카톡 문구 생성")
         kakao_button.clicked.connect(self._generate_kakao_message)
@@ -186,6 +210,9 @@ class PaymentDialog(QDialog):
             self.radio_lesson.setChecked(True)
         else:
             self.radio_center.setChecked(True)
+
+    def _toggle_daypass_group(self, category: str) -> None:
+        self._daypass_group.setVisible(category.strip() == "일일권")
 
     def _selected_section(self) -> str:
         return "레슨" if self.radio_lesson.isChecked() else "센터"
@@ -321,7 +348,13 @@ class PaymentDialog(QDialog):
             QMessageBox.critical(self, "오류", "\n".join(errors))
         if results:
             self._excel_saved = True
-            QMessageBox.information(self, "완료", "\n".join(results))
+            daypass_msg = ""
+            if self.category_combo.currentText().strip() == "일일권":
+                daypass_msg = self._write_to_daypass_db(entry)
+            msg = "\n".join(results)
+            if daypass_msg:
+                msg += f"\n{daypass_msg}"
+            QMessageBox.information(self, "완료", msg)
             if self.membership_type_combo.currentText() == "신규":
                 dlg = LeadDialog(
                     member_name=self.name_input.text().strip(),
@@ -329,6 +362,44 @@ class PaymentDialog(QDialog):
                     parent=self,
                 )
                 dlg.exec()
+
+    def _write_to_daypass_db(self, entry: PaymentEntry) -> str:
+        """일일권 DB 구글 시트에 기록하고 결과 문자열을 반환한다. 실패 시 경고 다이얼로그를 띄우고 빈 문자열 반환."""
+        from src.config.settings import (
+            get_daypass_db_spreadsheet_id,
+            get_daypass_db_sheet_name,
+            get_google_credentials_path,
+        )
+        from src.services.consultation_service import get_client
+        from src.services.daypass_db_service import get_daypass_sheet, append_daypass_entry
+
+        spreadsheet_id = get_daypass_db_spreadsheet_id()
+        sheet_name = get_daypass_db_sheet_name()
+
+        if not spreadsheet_id or not sheet_name:
+            QMessageBox.warning(
+                self, "일일권 DB",
+                "설정에서 일일권DB 시트 ID와 시트명을 입력해주세요.\n엑셀 저장은 완료되었습니다.",
+            )
+            return ""
+
+        try:
+            client = get_client(get_google_credentials_path())
+            ws = get_daypass_sheet(client, spreadsheet_id, sheet_name)
+            row_data = {
+                "manager": entry.manager,
+                "route": self._daypass_route_combo.currentText(),
+                "amount": entry.amount,
+                "visit_date": f"{entry.entry_date.month:02d}/{entry.entry_date.day:02d}",
+                "name": entry.name,
+                "phone": self._daypass_phone_input.text().strip(),
+                "content": self._daypass_content_input.text().strip(),
+            }
+            row_num = append_daypass_entry(ws, row_data)
+            return f"일일권 DB: {row_num}행에 기록 완료"
+        except Exception as exc:
+            QMessageBox.warning(self, "일일권 DB 오류", f"구글 시트 기록 중 오류 발생:\n{exc}")
+            return ""
 
     def _get_kakao_message(self) -> str | None:
         text = self.output.toPlainText().strip()
