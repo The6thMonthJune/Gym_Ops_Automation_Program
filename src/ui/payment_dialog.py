@@ -387,7 +387,7 @@ class PaymentDialog(QDialog):
             client = get_client(get_google_credentials_path())
             ws = get_daypass_sheet(client, spreadsheet_id, sheet_name)
             row_data = {
-                "manager": entry.manager,
+                "manager": entry.fc,
                 "route": self._daypass_route_combo.currentText(),
                 "amount": entry.amount,
                 "visit_date": f"{entry.entry_date.month:02d}/{entry.entry_date.day:02d}",

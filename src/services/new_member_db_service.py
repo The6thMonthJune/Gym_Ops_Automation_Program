@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import gspread
 
 _HEADER_ROW = 7
@@ -37,10 +39,30 @@ def _col_letter(n: int) -> str:
     return result
 
 
+def _current_month_sheet_name() -> str:
+    today = date.today()
+    return f"{today.strftime('%y')}/{today.month:02d}월"
+
+
+def _find_sheet(ss: gspread.Spreadsheet, configured_name: str) -> gspread.Worksheet:
+    """현재 달 시트명 → 설정값 순으로 시트를 탐색한다."""
+    auto_name = _current_month_sheet_name()
+    candidates = list(dict.fromkeys([auto_name, configured_name]))
+    for name in candidates:
+        if not name:
+            continue
+        try:
+            return ss.worksheet(name)
+        except gspread.exceptions.WorksheetNotFound:
+            continue
+    tried = ", ".join(f"'{n}'" for n in candidates if n)
+    raise RuntimeError(f"시트를 찾을 수 없습니다 (시도: {tried})")
+
+
 def get_new_db_sheet(
-    client: gspread.Client, spreadsheet_id: str, sheet_name: str
+    client: gspread.Client, spreadsheet_id: str, sheet_name: str = ""
 ) -> gspread.Worksheet:
-    return client.open_by_key(spreadsheet_id).worksheet(sheet_name)
+    return _find_sheet(client.open_by_key(spreadsheet_id), sheet_name)
 
 
 def find_by_phone(ws: gspread.Worksheet, phone: str) -> int | None:
