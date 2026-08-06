@@ -44,25 +44,50 @@ def _current_month_sheet_name() -> str:
     return f"{today.strftime('%y')}년 {today.month:02d}월"
 
 
-def _find_sheet(ss: gspread.Spreadsheet, configured_name: str) -> gspread.Worksheet:
-    """현재 달 시트명 → 설정값 순으로 시트를 탐색한다."""
+def _prev_month_sheet_name() -> str:
+    today = date.today()
+    m, y = (today.month - 1, today.year) if today.month > 1 else (12, today.year - 1)
+    return f"{str(y)[2:]}년 {m:02d}월"
+
+
+def _find_or_create_sheet(ss: gspread.Spreadsheet, configured_name: str) -> gspread.Worksheet:
+    """현재 달 시트 탐색 → 없으면 전월 시트 복사 생성 → 설정값 fallback"""
     auto_name = _current_month_sheet_name()
-    candidates = list(dict.fromkeys([auto_name, configured_name]))
-    for name in candidates:
-        if not name:
-            continue
+
+    try:
+        return ss.worksheet(auto_name)
+    except gspread.exceptions.WorksheetNotFound:
+        pass
+
+    prev_name = _prev_month_sheet_name()
+    source: gspread.Worksheet | None = None
+    try:
+        source = ss.worksheet(prev_name)
+    except gspread.exceptions.WorksheetNotFound:
+        pass
+
+    if source is not None:
+        new_ws = ss.duplicate_sheet(
+            source_sheet_id=source.id,
+            new_sheet_name=auto_name,
+            insert_sheet_index=len(ss.worksheets()),
+        )
+        new_ws.batch_clear([f"A{_DATA_START_ROW}:ZZ{new_ws.row_count}"])
+        return new_ws
+
+    if configured_name:
         try:
-            return ss.worksheet(name)
+            return ss.worksheet(configured_name)
         except gspread.exceptions.WorksheetNotFound:
-            continue
-    tried = ", ".join(f"'{n}'" for n in candidates if n)
-    raise RuntimeError(f"시트를 찾을 수 없습니다 (시도: {tried})")
+            pass
+
+    raise RuntimeError(f"'{auto_name}' 시트를 찾거나 생성할 수 없습니다.")
 
 
 def get_new_db_sheet(
     client: gspread.Client, spreadsheet_id: str, sheet_name: str = ""
 ) -> gspread.Worksheet:
-    return _find_sheet(client.open_by_key(spreadsheet_id), sheet_name)
+    return _find_or_create_sheet(client.open_by_key(spreadsheet_id), sheet_name)
 
 
 def find_by_phone(ws: gspread.Worksheet, phone: str) -> int | None:
