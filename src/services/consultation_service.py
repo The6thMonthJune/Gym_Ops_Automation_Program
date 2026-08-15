@@ -4,6 +4,8 @@ import os
 from datetime import date
 from pathlib import Path
 
+import json
+
 import gspread
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -25,11 +27,30 @@ def _sheet_name_for(year: int, month: int) -> str:
 
 
 def get_client(credentials_path: str = "") -> gspread.Client:
-    """OAuth 인증을 거쳐 gspread 클라이언트를 반환한다. 최초 실행 시 브라우저가 열린다."""
+    """gspread 클라이언트를 반환한다.
+
+    credentials 파일이 서비스 계정 JSON이면 토큰 없이 바로 인증한다.
+    OAuth 클라이언트 파일이면 기존 브라우저 로그인 흐름을 사용한다.
+    """
     _SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-    token_path = _SETTINGS_DIR / "google_token.json"
     creds_path = Path(credentials_path) if credentials_path else _SETTINGS_DIR / "google_credentials.json"
 
+    if not creds_path.exists():
+        raise FileNotFoundError(
+            f"Google 인증 파일({creds_path.name})을 찾을 수 없습니다.\n\n"
+            "설정에서 Google 인증 파일 경로를 지정해주세요.\n"
+            "서비스 계정 키 JSON 또는 OAuth credentials.json을 사용할 수 있습니다."
+        )
+
+    # 서비스 계정 JSON이면 토큰 갱신 없이 바로 인증
+    file_type = json.loads(creds_path.read_text(encoding="utf-8")).get("type", "")
+    if file_type == "service_account":
+        from google.oauth2.service_account import Credentials as SACredentials
+        sa_creds = SACredentials.from_service_account_file(str(creds_path), scopes=_SCOPES)
+        return gspread.Client(auth=sa_creds)
+
+    # OAuth 흐름 (기존)
+    token_path = _SETTINGS_DIR / "google_token.json"
     creds: Credentials | None = None
     if token_path.exists():
         creds = Credentials.from_authorized_user_file(str(token_path), _SCOPES)
@@ -38,12 +59,6 @@ def get_client(credentials_path: str = "") -> gspread.Client:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            if not creds_path.exists():
-                raise FileNotFoundError(
-                    f"Google 인증 파일({creds_path.name})을 찾을 수 없습니다.\n\n"
-                    "설정에서 Google 인증 파일(credentials.json) 경로를 지정해주세요.\n"
-                    "파일은 Google Cloud Console → API 및 서비스 → 사용자 인증 정보에서 발급합니다."
-                )
             flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), _SCOPES)
             creds = flow.run_local_server(port=0)
         token_path.write_text(creds.to_json(), encoding="utf-8")
