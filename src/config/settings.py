@@ -2,10 +2,33 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import sys
 from pathlib import Path
 
-_SETTINGS_DIR = Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드자동화"
+
+def _get_settings_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        # PyInstaller EXE: EXE 옆 '설정' 폴더
+        return Path(sys.executable).parent / "설정"
+    # 개발 환경: AppData
+    return Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드자동화"
+
+
+_SETTINGS_DIR = _get_settings_dir()
 _SETTINGS_FILE = _SETTINGS_DIR / "settings.json"
+_APPDATA_DIR = Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드자동화"
+
+
+def _migrate_from_appdata() -> None:
+    """구버전 AppData 설정을 EXE 옆 '설정' 폴더로 자동 이전한다."""
+    if _SETTINGS_FILE.exists() or not _APPDATA_DIR.exists():
+        return
+    _SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    for name in ("settings.json", "google_credentials.json", "google_token.json"):
+        src = _APPDATA_DIR / name
+        if src.exists():
+            shutil.copy2(str(src), str(_SETTINGS_DIR / name))
 
 # 설정 키
 _KEY_TEMPLATE_FILE = "template_file"
@@ -37,6 +60,7 @@ _KEY_DAYPASS_DB_SHEET_NAME = "daypass_db_sheet_name"
 
 
 def load_settings() -> dict:
+    _migrate_from_appdata()
     if not _SETTINGS_FILE.exists():
         return {}
     try:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from datetime import date
 from pathlib import Path
 
@@ -9,9 +8,11 @@ import json
 import gspread
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.oauth2.service_account import Credentials as SACredentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-_SETTINGS_DIR = Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드자동화"
+from src.config.settings import _SETTINGS_DIR
+
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 # 스프레드시트 구조 상수
@@ -45,7 +46,6 @@ def get_client(credentials_path: str = "") -> gspread.Client:
     # 서비스 계정 JSON이면 토큰 갱신 없이 바로 인증
     file_type = json.loads(creds_path.read_text(encoding="utf-8")).get("type", "")
     if file_type == "service_account":
-        from google.oauth2.service_account import Credentials as SACredentials
         sa_creds = SACredentials.from_service_account_file(str(creds_path), scopes=_SCOPES)
         return gspread.Client(auth=sa_creds)
 
