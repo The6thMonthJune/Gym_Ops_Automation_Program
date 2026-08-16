@@ -21,14 +21,17 @@ _APPDATA_DIR = Path(os.environ.get("APPDATA", "~")).expanduser() / "리와인드
 
 
 def _migrate_from_appdata() -> None:
-    """구버전 AppData 설정을 EXE 옆 '설정' 폴더로 자동 이전한다."""
-    if _SETTINGS_FILE.exists() or not _APPDATA_DIR.exists():
-        return
-    _SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("settings.json", "google_credentials.json", "google_token.json"):
-        src = _APPDATA_DIR / name
-        if src.exists():
-            shutil.copy2(str(src), str(_SETTINGS_DIR / name))
+    """구버전 AppData 설정을 EXE 옆 '설정' 폴더로 자동 이전한다. 실패 시 무시."""
+    try:
+        if _SETTINGS_FILE.exists() or not _APPDATA_DIR.exists():
+            return
+        _SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+        for name in ("settings.json", "google_credentials.json", "google_token.json"):
+            src = _APPDATA_DIR / name
+            if src.exists():
+                shutil.copy2(str(src), str(_SETTINGS_DIR / name))
+    except Exception:
+        pass
 
 # 설정 키
 _KEY_TEMPLATE_FILE = "template_file"
