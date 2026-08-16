@@ -224,7 +224,8 @@ class ConsultationDialog(QDialog):
         except FileNotFoundError as exc:
             QMessageBox.warning(self, "인증 파일 없음", str(exc))
         except Exception as exc:
-            QMessageBox.critical(self, "저장 실패", str(exc))
+            import traceback
+            QMessageBox.critical(self, "저장 실패", traceback.format_exc())
 
     def _send_kakao(self, target: str) -> None:
         if not self._message:
