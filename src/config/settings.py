@@ -60,6 +60,8 @@ _KEY_DEFAULT_MANAGER = "default_manager"
 _KEY_AUTO_TRANSFER_ROLLOVER = "auto_transfer_on_rollover"
 _KEY_DAYPASS_DB_SPREADSHEET_ID = "daypass_db_spreadsheet_id"
 _KEY_DAYPASS_DB_SHEET_NAME = "daypass_db_sheet_name"
+_KEY_AUTO_UPDATE_CHECK = "auto_update_check"
+_KEY_UPDATE_SKIP_VERSION = "update_skip_version"
 
 
 def load_settings() -> dict:
@@ -160,6 +162,22 @@ def get_daypass_db_spreadsheet_id() -> str:
 
 def get_daypass_db_sheet_name() -> str:
     return load_settings().get(_KEY_DAYPASS_DB_SHEET_NAME, "") or ""
+
+
+def get_auto_update_check() -> bool:
+    """시작할 때 새 버전을 확인할지. 미설정 시 켜진 것으로 본다."""
+    return bool(load_settings().get(_KEY_AUTO_UPDATE_CHECK, True))
+
+
+def get_update_skip_version() -> str:
+    """사용자가 '이 버전 건너뛰기'를 누른 버전. 그 버전은 다시 묻지 않는다."""
+    return load_settings().get(_KEY_UPDATE_SKIP_VERSION, "") or ""
+
+
+def set_update_skip_version(version: str) -> None:
+    settings = load_settings()
+    settings[_KEY_UPDATE_SKIP_VERSION] = version
+    save_settings(settings)
 
 
 def get_monthly_targets() -> tuple[int, int]:

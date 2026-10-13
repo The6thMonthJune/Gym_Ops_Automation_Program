@@ -14,9 +14,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from src.config.constants import APP_VERSION
 from src.config.settings import (
     _KEY_APARTMENT_COMPLEXES,
     _KEY_AUTO_TRANSFER_ROLLOVER,
+    _KEY_AUTO_UPDATE_CHECK,
     _KEY_BROJ_PASSWORD,
     _KEY_BROJ_USERNAME,
     _KEY_CONSULT_SPREADSHEET_ID,
@@ -143,6 +145,21 @@ class SettingsDialog(QDialog):
         self.auto_transfer_check = QCheckBox("데일리 롤오버 시 신규DB 자동 이관 실행")
         layout.addWidget(self.auto_transfer_check)
 
+        # ── 업데이트 ──────────────────────────────────────────────
+        self.auto_update_check = QCheckBox("프로그램 시작 시 새 버전 자동 확인")
+        layout.addWidget(self.auto_update_check)
+
+        update_row = QHBoxLayout()
+        version_lbl = QLabel(f"현재 버전: v{APP_VERSION}")
+        version_lbl.setStyleSheet("color: #6B7280; font-size: 11px;")
+        update_row.addWidget(version_lbl)
+        update_row.addStretch()
+
+        check_btn = QPushButton("지금 업데이트 확인")
+        check_btn.clicked.connect(self._check_update)
+        update_row.addWidget(check_btn)
+        layout.addLayout(update_row)
+
         # 아파트 단지 목록 편집
         layout.addWidget(QLabel("아파트 단지 목록 (신규 회원 거주지 선택에 사용)"))
 
@@ -202,6 +219,7 @@ class SettingsDialog(QDialog):
         self.default_part_input.setText(settings.get(_KEY_DEFAULT_PART, ""))
         self.default_manager_input.setText(settings.get(_KEY_DEFAULT_MANAGER, ""))
         self.auto_transfer_check.setChecked(bool(settings.get(_KEY_AUTO_TRANSFER_ROLLOVER, False)))
+        self.auto_update_check.setChecked(bool(settings.get(_KEY_AUTO_UPDATE_CHECK, True)))
         self._apt_list.clear()
         for apt in settings.get(_KEY_APARTMENT_COMPLEXES, []):
             self._apt_list.addItem(apt)
@@ -214,6 +232,13 @@ class SettingsDialog(QDialog):
         if name not in existing:
             self._apt_list.addItem(name)
         self._apt_input.clear()
+
+    def _check_update(self) -> None:
+        """수동 확인. 최신 버전이어도 결과를 알려준다."""
+        from src.ui.update_dialog import UpdateChecker
+
+        self._update_checker = UpdateChecker(self)
+        self._update_checker.start(silent=False)
 
     def _del_apt(self) -> None:
         for item in self._apt_list.selectedItems():
@@ -242,6 +267,7 @@ class SettingsDialog(QDialog):
         settings[_KEY_DEFAULT_PART] = self.default_part_input.text().strip()
         settings[_KEY_DEFAULT_MANAGER] = self.default_manager_input.text().strip()
         settings[_KEY_AUTO_TRANSFER_ROLLOVER] = self.auto_transfer_check.isChecked()
+        settings[_KEY_AUTO_UPDATE_CHECK] = self.auto_update_check.isChecked()
         settings[_KEY_APARTMENT_COMPLEXES] = [
             self._apt_list.item(i).text() for i in range(self._apt_list.count())
         ]

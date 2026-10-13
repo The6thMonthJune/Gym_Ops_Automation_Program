@@ -20,8 +20,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.core.file_naming import extract_date_from_filename
-from src.services.daily_file_service import create_next_daily_file
+from src.core.file_naming import (
+    build_date_path,
+    extract_date_from_filename,
+    resolve_file_date,
+)
+from src.services.daily_file_service import backfill_dailies, create_next_daily_file
 from src.services.sales_report_service import build_sales_report_text, read_sales_values
 from src.ui.countdown_dialog import CountdownDialog
 from src.services.locker_service import (
@@ -34,15 +38,18 @@ from src.services.snapshot_service import save_snapshot
 from src.services.lead_report_service import generate_report
 from src.ui.payment_dialog import PaymentDialog
 from src.ui.settings_dialog import SettingsDialog
+from src.ui.update_dialog import UpdateChecker
 from src.config.constants import APP_NAME
 from src.config.settings import (
     _KEY_DAILY_FILE,
     _KEY_TOTAL_SALES_FILE,
+    get_auto_update_check,
     get_nateon_webhook_url,
     load_settings,
     save_settings,
 )
 from src.services.nateon_service import send_webhook
+from src.services import update_service
 from src.services.schedule_service import HolidayNotificationScheduler, SalesReportScheduler
 
 _NAVY = "#1E2D3D"
@@ -265,6 +272,12 @@ class MainWindow(QMainWindow):
         self._holiday_scheduler = HolidayNotificationScheduler(self)
         self._holiday_scheduler.triggered.connect(self._prompt_holiday_notification)
         self._holiday_scheduler.start()
+
+        # 지난 업데이트 잔여물 정리 후, 창이 뜨고 나서 새 버전을 확인한다.
+        update_service.cleanup_leftovers()
+        self._update_checker = UpdateChecker(self)
+        if get_auto_update_check():
+            QTimer.singleShot(4000, self._update_checker.start)
 
     # ── UI 구성 ───────────────────────────────────────────────────
 
@@ -605,35 +618,46 @@ class MainWindow(QMainWindow):
                 f"저장된 데일리 파일 경로를 찾을 수 없습니다.\n\n{saved}\n\n파일을 다시 선택해주세요."
             )
             return
+        today = date.today()
         try:
-            parsed = extract_date_from_filename(Path(saved).name)
-            today = date.today()
-            if parsed.to_date(today.year) == today:
+            if resolve_file_date(Path(saved).name, today) == today:
                 return
 
-            old_str = f"{parsed.month}.{parsed.day}"
-            new_str = f"{today.month}.{today.day}"
-            today_path = Path(saved).parent / Path(saved).name.replace(old_str, new_str, 1)
-
-            if today_path.exists():
-                self._set_daily_path(str(today_path))
-            else:
-                created = create_next_daily_file(saved)
-                self._set_daily_path(str(created))
-                QMessageBox.information(
-                    self, "자동 생성",
-                    f"오늘 날짜 파일이 없어 자동으로 생성했습니다:\n{created.name}"
-                )
+            # 프로그램을 켜지 않은 날이 있으면 그 날짜 파일부터 오늘까지 한 번에 채운다.
+            created = backfill_dailies(saved, today)
+            today_path = build_date_path(saved, today)
+            self._set_daily_path(str(today_path))
+            self._notify_backfill(created, today_path)
         except Exception as exc:
             QMessageBox.warning(self, "자동 파일 생성 실패", str(exc))
+
+    def _notify_backfill(self, created: list[Path], today_path: Path) -> None:
+        """자동 생성 결과를 알린다. 빠진 날이 여러 개면 날짜를 모두 보여준다."""
+        if not created:
+            return
+
+        skipped = [p for p in created if p != today_path]
+        if not skipped:
+            QMessageBox.information(
+                self, "자동 생성",
+                f"오늘 날짜 파일이 없어 자동으로 생성했습니다:\n{today_path.name}"
+            )
+            return
+
+        names = ", ".join(p.name for p in skipped)
+        QMessageBox.information(
+            self, "자동 생성",
+            f"프로그램을 켜지 않은 날이 있어 빠진 데일리 파일 {len(created)}개를 만들었습니다.\n\n"
+            f"· 매출 없는 날 ({len(skipped)}일, 빈 양식): {names}\n"
+            f"· 오늘: {today_path.name}"
+        )
 
     def _ensure_next_file_exists(self) -> None:
         saved = self._path_daily
         if not saved or not Path(saved).exists():
             return
         try:
-            parsed = extract_date_from_filename(Path(saved).name)
-            if parsed.to_date(date.today().year) != date.today():
+            if resolve_file_date(Path(saved).name) != date.today():
                 return
             create_next_daily_file(saved)
         except FileExistsError:
