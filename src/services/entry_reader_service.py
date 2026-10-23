@@ -8,25 +8,16 @@ import openpyxl
 
 from src.config.constants import DEFAULT_SHEET_NAME
 from src.config.settings import get_expense_daily_sheet
+from src.core.sheet_layout import (
+    CURRENT_LAYOUT,
+    SALES_START_ROW,
+    SheetLayout,
+    last_column,
+    offsets,
+)
 
-# 매출 섹션 시작 열
-_SECTION_START_COL: dict[str, int] = {"센터": 2, "레슨": 16}
-_SALES_START_ROW = 12
-
-# 매출 컬럼 오프셋 (섹션 시작 기준)
-# entry_service.py _write_entry_row 기준:
-# +0=계약일, +1=일, +2=회원명, +3=종목, +4=회원권, +5=금액(부가세),
-# +6=금액(부가제외/수식), +7=결제방법, +8=승인번호, +9=FC, +10=담당
-_OFF_DAY = 1
-_OFF_NAME = 2
-_OFF_CATEGORY = 3
-_OFF_MEMBERSHIP = 4
-_OFF_AMOUNT = 5
-_OFF_PAYMENT = 7
-_OFF_APPROVAL = 8
-_OFF_FC = 9
-_OFF_MANAGER = 10
-
+# 열 배치는 src/core/sheet_layout 한 곳에서만 정의한다.
+# 데일리 파일을 읽으므로 신/재 칸이 있는 현재 양식을 쓴다.
 # 지출 컬럼 (expense_service와 동일)
 _EXP_START_ROW = 6
 _EXP_COL_DATE = 3
@@ -52,6 +43,7 @@ class SalesEntryRow:
     approval_number: str
     fc: str
     manager: str
+    membership_type: str = ""   # 신/재 — 없는 양식에서는 빈 문자열
 
 
 @dataclass
@@ -73,7 +65,23 @@ def _cell(row: tuple, col_1based: int):
     return row[idx] if idx < len(row) else None
 
 
-def read_sales_entries(file_path: str | Path) -> list[SalesEntryRow]:
+def _as_int(value) -> int:
+    """숫자가 아니면 0. 양식이 어긋나 글자가 들어와도 조회가 통째로 죽지 않게 한다."""
+    if value is None:
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _text(value) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def read_sales_entries(
+    file_path: str | Path, layout: SheetLayout = CURRENT_LAYOUT
+) -> list[SalesEntryRow]:
     """매출 내역을 읽는다.
     read_only=True 모드에서 ws.cell() 임의 접근은 스트리밍 XML을 매번 재탐색해
     행 수가 많으면 UI 스레드를 프리즈시킨다. iter_rows로 교체해 해결.
@@ -85,31 +93,38 @@ def read_sales_entries(file_path: str | Path) -> list[SalesEntryRow]:
         ws = wb[DEFAULT_SHEET_NAME]
         entries: list[SalesEntryRow] = []
 
-        max_col = 28  # AA열(레슨 마지막 열 16+11=27) 커버
-        rows = list(ws.iter_rows(min_row=_SALES_START_ROW, max_col=max_col, values_only=True))
+        rows = list(ws.iter_rows(
+            min_row=SALES_START_ROW, max_col=last_column(layout), values_only=True
+        ))
 
-        for section, col_start in _SECTION_START_COL.items():
+        for section, col_start in layout.section_start.items():
+            off = offsets(layout, section)
+
+            def read(row, key, _off=off, _start=col_start):
+                return _cell(row, _start + _off[key]) if _off[key] >= 0 else None
+
             for i, row in enumerate(rows):
-                name = _cell(row, col_start + _OFF_NAME)
+                name = read(row, "name")
                 if name is None or (isinstance(name, str) and name.startswith("=")):
                     continue
-                day_val    = _cell(row, col_start + _OFF_DAY)
-                amount_val = _cell(row, col_start + _OFF_AMOUNT)
+                day_val = read(row, "day")
+                amount_val = _as_int(read(row, "amount"))
                 # 조건부서식/유효성검사 더미 행 제거: 일(day)이 없거나 금액이 0인 경우 건너뜀
-                if day_val is None or (amount_val is not None and amount_val == 0 and day_val == 0):
+                if day_val is None or (amount_val == 0 and day_val == 0):
                     continue
                 entries.append(SalesEntryRow(
-                    row_num=_SALES_START_ROW + i,
+                    row_num=SALES_START_ROW + i,
                     section=section,
-                    day=int(day_val) if day_val is not None else 0,
+                    day=_as_int(day_val),
                     name=str(name).strip(),
-                    category=str(_cell(row, col_start + _OFF_CATEGORY) or "").strip(),
-                    membership=str(_cell(row, col_start + _OFF_MEMBERSHIP) or "").strip(),
-                    amount=int(amount_val) if amount_val is not None else 0,
-                    payment_method=str(_cell(row, col_start + _OFF_PAYMENT) or "").strip(),
-                    approval_number=str(_cell(row, col_start + _OFF_APPROVAL) or "").strip(),
-                    fc=str(_cell(row, col_start + _OFF_FC) or "").strip(),
-                    manager=str(_cell(row, col_start + _OFF_MANAGER) or "").strip(),
+                    category=_text(read(row, "category")),
+                    membership_type=_text(read(row, "membership_type")),
+                    membership=_text(read(row, "membership")),
+                    amount=amount_val,
+                    payment_method=_text(read(row, "payment")),
+                    approval_number=_text(read(row, "approval")),
+                    fc=_text(read(row, "fc")),
+                    manager=_text(read(row, "manager")),
                 ))
 
         return sorted(entries, key=lambda e: (e.day, e.row_num))

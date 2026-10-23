@@ -6,6 +6,13 @@ from pathlib import Path
 
 import xlwings as xw
 
+from src.core.sheet_layout import (
+    CURRENT_LAYOUT,
+    LEGACY_LAYOUT,
+    SheetLayout,
+    col_letter,
+    offsets,
+)
 from src.services.total_sales_service import (
     find_monthly_file_sheet_name,
     find_monthly_sheet_name,
@@ -20,43 +27,10 @@ PAYMENT_METHOD_EXCEL = {
     "지역화폐": "지역화폐",
 }
 
-# ── 시트 양식 ────────────────────────────────────────────────────────────────
-# 2026년 10월, 센터 섹션의 '종목'과 '회원권 종류' 사이에 신/재(신규·재등록) 칸이
-# 생겼다. 데일리·월별 총매 파일만 바뀌었고 전체 총매 파일은 기존 양식을 쓴다.
-# 센터가 한 칸 늘어난 만큼 레슨 섹션 시작 열도 P(16)에서 Q(17)로 밀린다.
-
-@dataclass(frozen=True)
-class SheetLayout:
-    section_start: dict[str, int]   # 섹션별 시작 열 (1-based)
-    has_membership_type: bool       # 센터 섹션에 신/재 칸이 있는지
-
-
-LEGACY_LAYOUT = SheetLayout({"센터": 2, "레슨": 16}, has_membership_type=False)
-CURRENT_LAYOUT = SheetLayout({"센터": 2, "레슨": 17}, has_membership_type=True)
-
+# 열 배치는 src/core/sheet_layout 한 곳에서만 정의한다.
 # 하위 호환 — 기존 호출부가 참조하던 이름
 SECTION_START_COL = LEGACY_LAYOUT.section_start
-
-
-def _offsets(layout: SheetLayout, section: str) -> dict[str, int]:
-    """섹션 시작 열을 0으로 둔 상대 위치. 신/재 칸이 없으면 그 뒤가 한 칸씩 당겨진다."""
-    has_type = layout.has_membership_type and section == "센터"
-    shift = 1 if has_type else 0
-    return {
-        "date": 0,
-        "day": 1,
-        "name": 2,
-        "category": 3,
-        "membership_type": 4 if has_type else -1,
-        "membership": 4 + shift,
-        "amount": 5 + shift,
-        "vat": 6 + shift,
-        "payment": 7 + shift,
-        "approval": 8 + shift,
-        "fc": 9 + shift,
-        "manager": 10 + shift,
-        "note": 11 + shift,
-    }
+_offsets = offsets
 
 
 @dataclass
@@ -143,13 +117,7 @@ def _to_list(val) -> list:
     return [val]
 
 
-def _col_letter(n: int) -> str:
-    """1-based 컬럼 번호를 Excel 열 문자로 변환 (1→A, 26→Z, 27→AA)."""
-    result = ""
-    while n > 0:
-        n, remainder = divmod(n - 1, 26)
-        result = chr(65 + remainder) + result
-    return result
+_col_letter = col_letter
 
 
 def _vat_formula(section: str, col_start: int, row_num: int, offsets: dict[str, int]) -> str:

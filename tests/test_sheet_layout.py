@@ -141,3 +141,61 @@ class TestYearlyTotalFile:
         ]
         assert "표지" not in removed        # 월 시트가 아닌 것은 건드리지 않는다
         assert "연간요약" not in removed
+
+
+class TestReaderMatchesWriterLayout:
+    """입력·조회가 서로 다른 열 배치를 들고 있어 내역 조회가 비던 적이 있다."""
+
+    def _daily(self, tmp_path):
+        import openpyxl
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "데일리매출"
+        # 센터: 신/재(F) 포함 13칸
+        for cell, value in [
+            ("C12", 24), ("D12", "홍길동"), ("E12", "헬스"), ("F12", "신규"),
+            ("G12", "헬스 3개월"), ("H12", 300000), ("J12", "카드(VAN)"), ("L12", "정준"),
+        ]:
+            ws[cell] = value
+        # 레슨: 신/재 없이 Q열부터
+        for cell, value in [
+            ("R13", 24), ("S13", "김철수"), ("T13", "PT"),
+            ("U13", "PT 10회"), ("V13", 900000), ("X13", "현금"),
+        ]:
+            ws[cell] = value
+        path = tmp_path / "리와인드 데일리 10.24.xlsx"
+        wb.save(str(path))
+        return path
+
+    def test_reads_both_sections_of_new_layout(self, tmp_path):
+        from src.services.entry_reader_service import read_sales_entries
+
+        rows = read_sales_entries(self._daily(tmp_path))
+
+        assert len(rows) == 2
+        center = next(r for r in rows if r.section == "센터")
+        assert (center.name, center.membership_type, center.membership) == \
+            ("홍길동", "신규", "헬스 3개월")
+        assert center.amount == 300000      # 신/재 칸만큼 밀린 금액 열을 읽는다
+        assert center.fc == "정준"
+
+        lesson = next(r for r in rows if r.section == "레슨")
+        assert (lesson.name, lesson.membership, lesson.amount) == ("김철수", "PT 10회", 900000)
+        assert lesson.membership_type == ""  # 레슨에는 신/재 칸이 없다
+
+    def test_text_in_amount_column_does_not_kill_the_whole_list(self, tmp_path):
+        """양식이 또 어긋나도 조회가 통째로 비지 않고 읽히는 만큼은 보여준다."""
+        import openpyxl
+
+        from src.services.entry_reader_service import read_sales_entries
+
+        path = self._daily(tmp_path)
+        wb = openpyxl.load_workbook(str(path))
+        wb["데일리매출"]["H12"] = "삼십만원"   # 금액 칸에 글자
+        wb.save(str(path))
+
+        rows = read_sales_entries(path)
+
+        assert len(rows) == 2
+        assert next(r for r in rows if r.section == "센터").amount == 0

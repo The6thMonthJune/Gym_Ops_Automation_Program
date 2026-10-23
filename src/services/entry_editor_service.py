@@ -7,28 +7,21 @@ import xlwings as xw
 
 from src.config.constants import DEFAULT_SHEET_NAME
 from src.config.settings import get_expense_daily_sheet
+from src.core.sheet_layout import (
+    CURRENT_LAYOUT,
+    LEGACY_LAYOUT,
+    SheetLayout,
+    offsets,
+    section_width,
+)
 from src.services.entry_service import PAYMENT_METHOD_EXCEL
 from src.services.total_sales_service import find_monthly_sheet_name
 from src.core.file_naming import extract_date_from_filename
 
-_SECTION_START_COL: dict[str, int] = {"센터": 2, "레슨": 16}
-_SALES_COL_COUNT = 12   # 섹션 시작부터 VAT 수식 열까지
+# 열 배치는 src/core/sheet_layout 한 곳에서만 정의한다.
+# 데일리는 신/재 칸이 있는 현재 양식, 전체 총매는 기존 양식을 쓴다.
 _EXP_COL_START = 3      # C: 일자
 _EXP_COL_END = 10       # J: 기타
-
-# 매출 컬럼 오프셋 (섹션 시작 기준, entry_service.py _write_entry_row 기준)
-# +0=계약일, +1=일, +2=회원명, +3=종목, +4=회원권, +5=금액(부가세),
-# +6=금액(부가제외/수식), +7=결제방법, +8=승인번호, +9=FC, +10=담당
-_OFF_NAME = 2
-_OFF_CATEGORY = 3
-_OFF_MEMBERSHIP = 4
-_OFF_AMOUNT = 5
-_OFF_PAYMENT = 7
-_OFF_APPROVAL = 8
-_OFF_FC = 9
-_OFF_MANAGER = 10
-
-# 지출 컬럼 (1-based, expense_service와 동일)
 _EXP_COL_CAT = 4
 _EXP_COL_DESC = 5
 _EXP_COL_AMT = 6
@@ -68,12 +61,16 @@ def _open_book(path: str | Path, password: str | None = None) -> tuple:
         raise
 
 
-def _find_sales_row_in_sheet(ws, section: str, day: int, name: str, original_amount: int, start_row: int = 12) -> int | None:
+def _find_sales_row_in_sheet(
+    ws, section: str, day: int, name: str, original_amount: int,
+    start_row: int = 12, layout: SheetLayout = CURRENT_LAYOUT,
+) -> int | None:
     """시트에서 (구분·일·회원명·금액)이 일치하는 행 번호를 반환한다. 없으면 None."""
-    col_start = _SECTION_START_COL[section]
-    col_day    = col_start + _OFF_DAY_FOR_FIND
-    col_name   = col_start + _OFF_NAME
-    col_amount = col_start + _OFF_AMOUNT
+    col_start = layout.section_start[section]
+    off = offsets(layout, section)
+    col_day    = col_start + off["day"]
+    col_name   = col_start + off["name"]
+    col_amount = col_start + off["amount"]
 
     for row_num in range(start_row, 2000):
         day_val  = ws.range((row_num, col_day)).value
@@ -92,29 +89,40 @@ def _find_sales_row_in_sheet(ws, section: str, day: int, name: str, original_amo
     return None
 
 
-_OFF_DAY_FOR_FIND = 1  # col_start + 1 = 일
-
-
-def _write_cells(ws, row_num: int, col_start: int, payment_excel: str,
+def _write_cells(ws, row_num: int, section: str, payment_excel: str,
                  name: str, category: str, membership: str,
-                 amount: int, approval_number: str, fc: str, manager: str) -> None:
-    ws.range((row_num, col_start + _OFF_NAME)).value = name
-    ws.range((row_num, col_start + _OFF_CATEGORY)).value = category
-    ws.range((row_num, col_start + _OFF_MEMBERSHIP)).value = membership
-    ws.range((row_num, col_start + _OFF_AMOUNT)).value = amount
-    ws.range((row_num, col_start + _OFF_PAYMENT)).value = payment_excel
-    ws.range((row_num, col_start + _OFF_APPROVAL)).value = approval_number or None
-    ws.range((row_num, col_start + _OFF_FC)).value = fc
-    ws.range((row_num, col_start + _OFF_MANAGER)).value = manager
+                 amount: int, approval_number: str, fc: str, manager: str,
+                 membership_type: str = "", layout: SheetLayout = CURRENT_LAYOUT) -> None:
+    col_start = layout.section_start[section]
+    off = offsets(layout, section)
+    values = {
+        "name": name,
+        "category": category,
+        "membership_type": membership_type or None,
+        "membership": membership,
+        "amount": amount,
+        "payment": payment_excel,
+        "approval": approval_number or None,
+        "fc": fc,
+        "manager": manager,
+    }
+    for key, value in values.items():
+        if off[key] < 0:
+            continue
+        # 신/재는 수정창에서 다루지 않는다. 빈 값으로 덮어써서 지우면 안 된다.
+        if key == "membership_type" and not membership_type:
+            continue
+        ws.range((row_num, col_start + off[key])).value = value
 
 
 def delete_sales_row(daily_path: str | Path, row_num: int, section: str) -> None:
     """데일리 파일의 매출 행을 삭제(값 초기화)한다. 수식은 보존."""
-    col_start = _SECTION_START_COL[section]
+    col_start = CURRENT_LAYOUT.section_start[section]
+    width = section_width(CURRENT_LAYOUT, section)
     book, was_open = _open_book(daily_path)
     try:
         ws = book.sheets[DEFAULT_SHEET_NAME]
-        for col in range(col_start, col_start + _SALES_COL_COUNT):
+        for col in range(col_start, col_start + width):
             cell = ws.range((row_num, col))
             if cell.formula and cell.formula.startswith("="):
                 continue
@@ -151,6 +159,7 @@ def edit_sales_row(
     approval_number: str,
     fc: str,
     manager: str,
+    membership_type: str = "",
     original_name: str = "",
     original_amount: int = 0,
     total_path: str | Path | None = None,
@@ -162,15 +171,15 @@ def edit_sales_row(
     Returns:
         총매출 파일 업데이트 실패 시 오류 메시지 문자열, 성공 또는 미지정이면 None.
     """
-    col_start = _SECTION_START_COL[section]
     payment_excel = PAYMENT_METHOD_EXCEL.get(payment_method, payment_method)
 
     # ── 데일리 파일 수정 ──────────────────────────────────────────
     book, was_open = _open_book(daily_path)
     try:
         ws = book.sheets[DEFAULT_SHEET_NAME]
-        _write_cells(ws, row_num, col_start, payment_excel,
-                     name, category, membership, amount, approval_number, fc, manager)
+        _write_cells(ws, row_num, section, payment_excel,
+                     name, category, membership, amount, approval_number, fc, manager,
+                     membership_type, CURRENT_LAYOUT)
         book.save()
     finally:
         if not was_open:
@@ -196,16 +205,19 @@ def edit_sales_row(
             return f"총매출 파일에서 {year}년 {month}월 시트를 찾을 수 없습니다."
 
         total_ws = total_book.sheets[sheet_name]
+        # 전체 총매는 신/재 칸이 없는 기존 양식이다
         total_row = _find_sales_row_in_sheet(
             total_ws, section, day,
             original_name or name,
             original_amount if original_amount else amount,
+            layout=LEGACY_LAYOUT,
         )
         if total_row is None:
             return "총매출 파일에서 해당 내역을 찾지 못했습니다. 수동으로 확인해 주세요."
 
-        _write_cells(total_ws, total_row, col_start, payment_excel,
-                     name, category, membership, amount, approval_number, fc, manager)
+        _write_cells(total_ws, total_row, section, payment_excel,
+                     name, category, membership, amount, approval_number, fc, manager,
+                     layout=LEGACY_LAYOUT)
         total_book.save()
         return None
     finally:

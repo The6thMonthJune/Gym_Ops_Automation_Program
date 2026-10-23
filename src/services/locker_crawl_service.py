@@ -230,46 +230,157 @@ def _make_driver(log: Callable[[str], None] | None = None):
 # 사이트가 마크업을 바꾸면 여기가 가장 먼저 깨진다. 셀렉터를 여러 개 두고, 그래도
 # 실패하면 화면에 뭐가 있었는지 그대로 보여줘서 원격에서 원인을 잡을 수 있게 한다.
 
-_LOGIN_FIELD_ID = "login_id"
+# 로그인 입력란은 id가 바뀔 수 있다. type="password"는 거의 바뀌지 않으므로
+# 비밀번호 칸을 기준점으로 잡고 아이디 칸·제출 버튼을 구조로 찾는다.
+_PASSWORD_XPATH = "//input[@type='password']"
+_ID_XPATHS = [
+    "//input[@id='login_id']",
+    "//input[@type='text' or @type='email' or @type='tel' or not(@type)]",
+]
+_SUBMIT_XPATHS = [
+    "//*[@id='login-submit']",
+    "//button[@type='submit']",
+    "//button[contains(., '로그인')]",
+    "//input[@type='submit']",
+]
 
 # text()는 직계 텍스트 노드만 본다. <button><span>로그인</span></button> 같은
 # 중첩 구조도 잡으려면 . 으로 비교해야 한다.
 _LOGIN_ENTRY_XPATHS = [
-    "//button[contains(., '로그인 페이지')]",
-    "//a[contains(., '로그인 페이지')]",
-    "//*[@role='button'][contains(., '로그인 페이지')]",
     "//button[contains(., '로그인')]",
     "//a[contains(., '로그인')]",
+    "//*[@role='button'][contains(., '로그인')]",
     "//input[@type='button' or @type='submit'][contains(@value, '로그인')]",
 ]
+
+
+def _visible(elements: list) -> list:
+    """화면에 보이는 것만 남긴다. 숨은 입력란을 잘못 집는 일을 막는다."""
+    result = []
+    for element in elements:
+        try:
+            if element.is_displayed():
+                result.append(element)
+        except Exception:
+            continue
+    return result
+
+
+def _find_password_input(driver):
+    """비밀번호 입력란을 찾는다. 모달이 iframe 안에 있으면 그 안까지 들어간다."""
+    from selenium.webdriver.common.by import By
+
+    found = _visible(driver.find_elements(By.XPATH, _PASSWORD_XPATH))
+    if found:
+        return found[0]
+
+    for frame in driver.find_elements(By.TAG_NAME, "iframe"):
+        try:
+            driver.switch_to.frame(frame)
+            found = _visible(driver.find_elements(By.XPATH, _PASSWORD_XPATH))
+            if found:
+                return found[0]
+        except Exception:
+            pass
+        finally:
+            if not found:
+                driver.switch_to.default_content()
+    return None
 
 
 def _open_login_form(driver, wait, log: Callable[[str], None]) -> None:
     """로그인 입력란이 보일 때까지 진입한다. 이미 보이면 아무것도 하지 않는다."""
     from selenium.webdriver.common.by import By
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.webdriver.support.ui import WebDriverWait
 
-    if driver.find_elements(By.ID, _LOGIN_FIELD_ID):
+    if _find_password_input(driver):
         log("로그인 폼이 이미 표시됨")
         return
 
     for xpath in _LOGIN_ENTRY_XPATHS:
-        elements = driver.find_elements(By.XPATH, xpath)
+        elements = _visible(driver.find_elements(By.XPATH, xpath))
         if not elements:
             continue
         try:
             elements[0].click()
         except Exception:
             continue
-        log(f"로그인 페이지 진입 ({xpath})")
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.ID, _LOGIN_FIELD_ID))
-        )
-        return
+        log(f"로그인 진입 클릭 ({xpath})")
+        # 모달이 떠서 입력란이 그려질 때까지 기다린다
+        for _ in range(20):
+            if _find_password_input(driver):
+                return
+            time.sleep(0.5)
 
-    # 버튼 없이 바로 폼이 뜨는 경우를 대비해 한 번 더 기다려본다
-    wait.until(EC.presence_of_element_located((By.ID, _LOGIN_FIELD_ID)))
+    if not _find_password_input(driver):
+        raise RuntimeError("로그인 입력란(비밀번호 칸)을 찾지 못했습니다.")
+
+
+def _submit_login(driver, username: str, password: str, log: Callable[[str], None]) -> None:
+    """아이디·비밀번호를 넣고 로그인 버튼을 누른다.
+
+    id가 바뀌어도 동작하도록 비밀번호 칸을 기준으로 폼 안에서 상대 탐색한다.
+    """
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+
+    password_input = _find_password_input(driver)
+    if password_input is None:
+        raise RuntimeError("비밀번호 입력란을 찾지 못했습니다.")
+
+    id_input = None
+    for xpath in _ID_XPATHS:
+        candidates = [
+            el for el in _visible(driver.find_elements(By.XPATH, xpath))
+            if el != password_input
+        ]
+        if candidates:
+            id_input = candidates[0]
+            break
+    if id_input is None:
+        raise RuntimeError("아이디 입력란을 찾지 못했습니다.")
+
+    id_input.clear()
+    id_input.send_keys(username)
+    password_input.clear()
+    password_input.send_keys(password)
+    log("아이디·비밀번호 입력 완료")
+
+    for xpath in _SUBMIT_XPATHS:
+        buttons = _visible(driver.find_elements(By.XPATH, xpath))
+        if buttons:
+            buttons[0].click()
+            log(f"로그인 버튼 클릭 ({xpath})")
+            return
+
+    # 버튼을 못 찾으면 엔터로 제출을 시도한다
+    password_input.send_keys(Keys.RETURN)
+    log("로그인 버튼을 찾지 못해 엔터로 제출")
+
+
+def _input_field_summary(driver, limit: int = 10) -> list[str]:
+    """입력란의 id/name/type/placeholder를 모은다. 셀렉터가 깨졌을 때 단서가 된다."""
+    from selenium.webdriver.common.by import By
+
+    summary: list[str] = []
+    try:
+        for element in driver.find_elements(By.TAG_NAME, "input"):
+            parts = [
+                f"{key}={value}"
+                for key, value in (
+                    ("id", element.get_attribute("id")),
+                    ("name", element.get_attribute("name")),
+                    ("type", element.get_attribute("type")),
+                    ("placeholder", element.get_attribute("placeholder")),
+                )
+                if value
+            ]
+            if parts:
+                summary.append("<input " + " ".join(parts) + ">")
+            if len(summary) >= limit:
+                break
+    except Exception:
+        pass
+    return summary
 
 
 def _visible_button_texts(driver, limit: int = 15) -> list[str]:
@@ -299,12 +410,15 @@ def _login_help_text(driver, exc: Exception) -> str:
 
     buttons = _visible_button_texts(driver)
     button_line = ", ".join(buttons) if buttons else "(없음)"
+    inputs = _input_field_summary(driver)
+    input_line = "\n  ".join(inputs) if inputs else "(없음)"
 
     return (
-        "브로제이 로그인 화면으로 들어가지 못했습니다.\n\n"
+        "브로제이 로그인에 실패했습니다.\n\n"
         f"현재 주소: {url}\n"
         f"페이지 제목: {title}\n"
-        f"화면의 버튼·링크: {button_line}\n\n"
+        f"화면의 버튼·링크: {button_line}\n"
+        f"입력란:\n  {input_line}\n\n"
         "사이트 화면 구성이 바뀌었을 수 있습니다.\n"
         "위 내용을 그대로 제작자에게 전달해주세요.\n\n"
         f"원본 오류: {exc}"
@@ -413,9 +527,10 @@ def fetch_locker_records(
                 _log(f"접속 실패, 5초 후 재시도... ({exc})")
                 time.sleep(5)
 
-        wait.until(EC.presence_of_element_located((By.ID, "login_id"))).send_keys(username)
-        driver.find_element(By.ID, "login_password").send_keys(password)
-        driver.find_element(By.ID, "login-submit").click()
+        try:
+            _submit_login(driver, username, password, _log)
+        except Exception as exc:
+            raise RuntimeError(_login_help_text(driver, exc)) from exc
         _log("로그인 시도 중...")
 
         wait.until(EC.element_to_be_clickable(
