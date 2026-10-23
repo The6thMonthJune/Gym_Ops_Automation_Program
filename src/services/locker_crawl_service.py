@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
 import time
 from datetime import date
 from pathlib import Path
 from typing import Callable
 
+from src.config.settings import _SETTINGS_DIR
 from src.services.broj_service import LockerRecord
+
+_EDGE_DRIVER_DOWNLOAD = "https://developer.microsoft.com/microsoft-edge/tools/webdriver/"
 
 _BROJ_BASE = "https://crm.broj.co.kr"
 
@@ -19,10 +25,154 @@ _SECTIONS = [
 ]
 
 
-def _make_driver():
+# ── Edge 드라이버 준비 ─────────────────────────────────────────────────────────
+# msedgedriver는 설치된 엣지와 메이저 버전이 같아야 한다. 빌드 시 번들한 드라이버는
+# 센터 PC의 엣지가 자동 업데이트되는 순간 어긋나므로, 버전을 확인해서 맞을 때만 쓰고
+# 아니면 Selenium Manager가 엣지에 맞는 드라이버를 내려받게 한다.
+
+def _major(text: str) -> int | None:
+    match = re.search(r"(\d+)\.\d+\.\d+", text or "")
+    return int(match.group(1)) if match else None
+
+
+def _exe_version(path: Path) -> str:
+    """실행 파일의 --version 출력. 창 없는 앱에서 콘솔이 깜빡이지 않게 한다."""
+    try:
+        done = subprocess.run(
+            [str(path), "--version"],
+            capture_output=True, text=True, timeout=15,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except Exception:
+        return ""
+    return (done.stdout or done.stderr or "").strip()
+
+
+def _installed_edge_major() -> int | None:
+    """설치된 엣지의 메이저 버전. 레지스트리 → 설치 폴더 순으로 확인한다."""
+    try:
+        import winreg
+    except ImportError:
+        return None
+
+    for root, key, value_name in (
+        (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Edge\BLBeacon", "version"),
+        (winreg.HKEY_LOCAL_MACHINE,
+         r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients"
+         r"\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}", "pv"),
+    ):
+        try:
+            with winreg.OpenKey(root, key) as handle:
+                major = _major(str(winreg.QueryValueEx(handle, value_name)[0]))
+            if major is not None:
+                return major
+        except OSError:
+            continue
+
+    # 레지스트리가 비어 있으면 설치 폴더의 버전 디렉터리 이름에서 읽는다
+    for base in (
+        r"C:\Program Files (x86)\Microsoft\Edge\Application",
+        r"C:\Program Files\Microsoft\Edge\Application",
+    ):
+        folder = Path(base)
+        if not folder.exists():
+            continue
+        majors = [_major(child.name) for child in folder.iterdir() if child.is_dir()]
+        if found := [m for m in majors if m is not None]:
+            return max(found)
+    return None
+
+
+def _edge_driver_candidates() -> list[Path]:
+    """우선순위: 설정 폴더(사용자가 직접 넣은 것) → 빌드 번들 → EXE 옆 drivers."""
+    paths = [_SETTINGS_DIR / "msedgedriver.exe"]
+    if getattr(sys, "frozen", False):
+        paths.append(Path(sys._MEIPASS) / "drivers" / "msedgedriver.exe")
+        paths.append(Path(sys.executable).parent / "drivers" / "msedgedriver.exe")
+    else:
+        paths.append(Path(__file__).parents[2] / "drivers" / "msedgedriver.exe")
+    return [p for p in paths if p.exists()]
+
+
+def _driver_cache_dir() -> Path:
+    """Selenium Manager가 받은 드라이버를 보관할 폴더. 다음 실행 때 재사용된다."""
+    cache = _SETTINGS_DIR / "webdriver"
+    cache.mkdir(parents=True, exist_ok=True)
+    return cache
+
+
+def _ensure_selenium_manager() -> None:
+    """EXE 안에 번들된 Selenium Manager 실행 파일 위치를 환경변수로 알려준다.
+
+    selenium은 패키지 경로 기준으로 이 바이너리를 찾는데, PyInstaller 번들에서는
+    탐색에 실패할 수 있다. 미리 잡아두면 자동 다운로드 경로가 끊기지 않는다.
+    """
+    if os.getenv("SE_MANAGER_PATH") or not getattr(sys, "frozen", False):
+        return
+    binary = (
+        Path(sys._MEIPASS) / "selenium" / "webdriver" / "common"
+        / "windows" / "selenium-manager.exe"
+    )
+    if binary.exists():
+        os.environ["SE_MANAGER_PATH"] = str(binary)
+
+
+def _driver_help_text(edge_major: int | None, exc: Exception) -> str:
+    edge_label = str(edge_major) if edge_major else "확인 불가"
+    return (
+        "락카 동기화에 쓸 엣지 드라이버를 준비하지 못했습니다.\n\n"
+        f"설치된 엣지 버전: {edge_label}\n"
+        "인터넷이 막혀 있거나 백신이 드라이버 다운로드를 차단했을 수 있습니다.\n\n"
+        "직접 해결하려면:\n"
+        f"1. {_EDGE_DRIVER_DOWNLOAD} 에서\n"
+        f"   설치된 엣지와 같은 버전({edge_label})의 Edge WebDriver (x64)를 받습니다.\n"
+        "2. 압축을 풀어 나온 msedgedriver.exe 를\n"
+        f"   {_SETTINGS_DIR} 폴더에 넣고 프로그램을 다시 실행합니다.\n\n"
+        f"원본 오류: {exc}"
+    )
+
+
+def _make_edge_driver(opts, log: Callable[[str], None]):
+    from selenium import webdriver
+    from selenium.webdriver.edge.service import Service as EdgeService
+
+    edge_major = _installed_edge_major()
+    log(f"엣지 버전 확인: {edge_major or '알 수 없음'}")
+
+    for candidate in _edge_driver_candidates():
+        driver_major = _major(_exe_version(candidate))
+        if edge_major is not None and driver_major != edge_major:
+            log(f"  드라이버 버전 불일치 (드라이버 {driver_major or '?'} ≠ 엣지 {edge_major}) — 건너뜀")
+            continue
+        try:
+            return webdriver.Edge(
+                service=EdgeService(executable_path=str(candidate)), options=opts
+            )
+        except Exception as exc:
+            log(f"  드라이버 실행 실패: {exc}")
+
+    # 맞는 드라이버가 없으면 Selenium Manager가 엣지에 맞춰 내려받는다 (한 번 받으면 캐시됨)
+    log("엣지에 맞는 드라이버를 준비하는 중...")
+    _ensure_selenium_manager()
+    try:
+        os.environ.setdefault("SE_CACHE_PATH", str(_driver_cache_dir()))
+    except OSError:
+        pass  # 설정 폴더에 쓸 수 없으면 기본 캐시 위치를 쓴다
+
+    try:
+        return webdriver.Edge(options=opts)
+    except Exception as exc:
+        raise RuntimeError(_driver_help_text(edge_major, exc)) from exc
+
+
+def _make_driver(log: Callable[[str], None] | None = None):
     import platform
     import tempfile
     from selenium import webdriver
+
+    def _log(msg: str) -> None:
+        if log:
+            log(msg)
 
     system = platform.system()
 
@@ -45,9 +195,7 @@ def _make_driver():
     ]
 
     if system == "Windows":
-        import sys
         from selenium.webdriver.edge.options import Options as EdgeOptions
-        from selenium.webdriver.edge.service import Service as EdgeService
 
         opts = EdgeOptions()
         for arg in _common_args:
@@ -61,20 +209,7 @@ def _make_driver():
                 opts.binary_location = edge_path
                 break
 
-        # 빌드 시 번들된 msedgedriver.exe를 우선 사용 → 런타임 네트워크 다운로드 불필요
-        driver_candidates: list[Path] = []
-        if getattr(sys, "frozen", False):
-            driver_candidates.append(Path(sys._MEIPASS) / "drivers" / "msedgedriver.exe")
-            driver_candidates.append(Path(sys.executable).parent / "drivers" / "msedgedriver.exe")
-        else:
-            driver_candidates.append(Path(__file__).parent.parent.parent / "drivers" / "msedgedriver.exe")
-
-        for candidate in driver_candidates:
-            if candidate.exists():
-                return webdriver.Edge(service=EdgeService(executable_path=str(candidate)), options=opts)
-
-        # 번들 드라이버가 없으면 Selenium Manager 자동 탐색 시도
-        return webdriver.Edge(options=opts)
+        return _make_edge_driver(opts, _log)
 
     # Mac: Chrome + headless=new (Mac ARM은 --headless 크래시)
     from selenium.webdriver.chrome.options import Options
@@ -174,7 +309,7 @@ def fetch_locker_records(
         if log:
             log(msg)
 
-    driver = _make_driver()
+    driver = _make_driver(_log)
     wait = WebDriverWait(driver, 40)  # 느린 PC 대응 — 20 → 40초
     all_records: list[LockerRecord] = []
 
