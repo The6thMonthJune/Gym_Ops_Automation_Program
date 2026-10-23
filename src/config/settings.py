@@ -37,6 +37,7 @@ def _migrate_from_appdata() -> None:
 _KEY_TEMPLATE_FILE = "template_file"
 _KEY_DAILY_FILE = "daily_file"
 _KEY_TOTAL_SALES_FILE = "total_sales_file"
+_KEY_MONTHLY_TOTAL_FILE = "monthly_total_file"
 _KEY_TOTAL_SALES_PASSWORD = "total_sales_password"
 _KEY_EXPENSE_DAILY_SHEET = "expense_daily_sheet"
 _KEY_PHONE_IP = "phone_ip"
@@ -162,6 +163,11 @@ def get_daypass_db_spreadsheet_id() -> str:
 
 def get_daypass_db_sheet_name() -> str:
     return load_settings().get(_KEY_DAYPASS_DB_SHEET_NAME, "") or ""
+
+
+def get_monthly_total_file() -> str:
+    """월별 총매 파일 경로. 미설정 시 빈 문자열."""
+    return load_settings().get(_KEY_MONTHLY_TOTAL_FILE, "") or ""
 
 
 def get_auto_update_check() -> bool:

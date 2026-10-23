@@ -66,6 +66,38 @@ def find_monthly_expense_sheet_name(sheet_names: list[str], year: int, month: in
     )
 
 
+def find_monthly_file_sheet_name(
+    sheet_names: list[str], year: int, month: int, kind: str = "매출"
+) -> str:
+    """월별 총매 파일에서 해당 연월 시트명을 찾는다.
+
+    이 파일은 전체 총매와 시트 이름 규칙이 다르다.
+    허용 패턴 예시: '26.10월매출', '26.10월 매출', '26.9월지출'
+
+    Args:
+        kind: '매출' 또는 '지출'
+    """
+    two_digit_year = year % 100
+    year_tokens = (f"{two_digit_year}.", f"{two_digit_year}년")
+    month_tokens = {f"{month}월", f"{month:02d}월"}
+
+    for name in sheet_names:
+        if kind not in name:
+            continue
+        if kind == "매출" and "지출" in name:
+            continue  # '지출'에도 '출'이 겹치지 않도록 명시적으로 배제
+        if not any(token in name for token in year_tokens):
+            continue
+        if any(token in name for token in month_tokens):
+            return name
+
+    raise ValueError(
+        f"{year}년 {month}월 {kind} 시트를 찾을 수 없습니다.\n"
+        f"파일 내 시트 목록: {', '.join(sheet_names)}\n"
+        f"시트 이름 형식 예시: '{two_digit_year}.{month}월{kind}'"
+    )
+
+
 def open_workbook(file_path: str | Path, password: str | None = None):
     """
     엑셀 파일을 openpyxl로 열어 반환한다. (읽기 전용 용도)

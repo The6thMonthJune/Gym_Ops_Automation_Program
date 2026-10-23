@@ -6,7 +6,10 @@ from pathlib import Path
 
 import xlwings as xw
 
-from src.services.total_sales_service import find_monthly_sheet_name
+from src.services.total_sales_service import (
+    find_monthly_file_sheet_name,
+    find_monthly_sheet_name,
+)
 
 # 카톡 선택지 → 엑셀 기재 형식
 PAYMENT_METHOD_EXCEL = {
@@ -17,9 +20,43 @@ PAYMENT_METHOD_EXCEL = {
     "지역화폐": "지역화폐",
 }
 
-# 센터/레슨 구분에 따른 시작 컬럼 (1-based)
-# 센터: B열(2)부터, 레슨: P열(16)부터, 양식은 동일한 12컬럼
-SECTION_START_COL = {"센터": 2, "레슨": 16}
+# ── 시트 양식 ────────────────────────────────────────────────────────────────
+# 2026년 10월, 센터 섹션의 '종목'과 '회원권 종류' 사이에 신/재(신규·재등록) 칸이
+# 생겼다. 데일리·월별 총매 파일만 바뀌었고 전체 총매 파일은 기존 양식을 쓴다.
+# 센터가 한 칸 늘어난 만큼 레슨 섹션 시작 열도 P(16)에서 Q(17)로 밀린다.
+
+@dataclass(frozen=True)
+class SheetLayout:
+    section_start: dict[str, int]   # 섹션별 시작 열 (1-based)
+    has_membership_type: bool       # 센터 섹션에 신/재 칸이 있는지
+
+
+LEGACY_LAYOUT = SheetLayout({"센터": 2, "레슨": 16}, has_membership_type=False)
+CURRENT_LAYOUT = SheetLayout({"센터": 2, "레슨": 17}, has_membership_type=True)
+
+# 하위 호환 — 기존 호출부가 참조하던 이름
+SECTION_START_COL = LEGACY_LAYOUT.section_start
+
+
+def _offsets(layout: SheetLayout, section: str) -> dict[str, int]:
+    """섹션 시작 열을 0으로 둔 상대 위치. 신/재 칸이 없으면 그 뒤가 한 칸씩 당겨진다."""
+    has_type = layout.has_membership_type and section == "센터"
+    shift = 1 if has_type else 0
+    return {
+        "date": 0,
+        "day": 1,
+        "name": 2,
+        "category": 3,
+        "membership_type": 4 if has_type else -1,
+        "membership": 4 + shift,
+        "amount": 5 + shift,
+        "vat": 6 + shift,
+        "payment": 7 + shift,
+        "approval": 8 + shift,
+        "fc": 9 + shift,
+        "manager": 10 + shift,
+        "note": 11 + shift,
+    }
 
 
 @dataclass
@@ -35,6 +72,7 @@ class PaymentEntry:
     fc: str = ""                 # FC 담당자 (선택)
     manager: str = ""            # 담당 (선택)
     note: str = ""               # 기타 / 특이사항 (선택)
+    membership_type: str = ""    # 신/재 — 신규 / 재등 / 기존 (신규 양식 전용)
 
     @property
     def payment_method_excel(self) -> str:
@@ -114,12 +152,12 @@ def _col_letter(n: int) -> str:
     return result
 
 
-def _vat_formula(section: str, col_start: int, row_num: int) -> str:
+def _vat_formula(section: str, col_start: int, row_num: int, offsets: dict[str, int]) -> str:
     """부가세 제외 금액 셀에 넣을 Excel 수식을 반환한다.
     엑셀 원본 양식의 수식과 동일하게 유지해야 다음날 파일 복사 시 양식이 깨지지 않는다.
     """
-    amt = f"{_col_letter(col_start + 5)}{row_num}"   # 금액(부가세) 셀
-    pay = f"{_col_letter(col_start + 7)}{row_num}"   # 결제방법 셀
+    amt = f"{_col_letter(col_start + offsets['amount'])}{row_num}"
+    pay = f"{_col_letter(col_start + offsets['payment'])}{row_num}"
     if section == "레슨":
         return (
             f'=IF(OR({pay}="카드(VAN)",{pay}="카드(C-PG)",{pay}="법인계좌",'
@@ -150,15 +188,19 @@ def _date_already_written(sheet, row_num: int, col_start: int, entry_date: date)
     return False
 
 
-def check_duplicate(sheet, entry: PaymentEntry, start_row: int = 12) -> bool:
+def check_duplicate(
+    sheet, entry: PaymentEntry, start_row: int = 12,
+    layout: SheetLayout = LEGACY_LAYOUT,
+) -> bool:
     """
     같은 날짜(일) + 회원명 + 금액의 항목이 시트에 이미 존재하는지 확인한다.
-    section에 따라 탐색 컬럼이 달라진다 (센터: C/D/G, 레슨: Q/R/U).
+    탐색 컬럼은 섹션과 시트 양식에 따라 달라진다.
     """
-    col_start = SECTION_START_COL.get(entry.section, 2)
-    col_day    = col_start + 1   # 센터=C(3), 레슨=Q(17)
-    col_name   = col_start + 2   # 센터=D(4), 레슨=R(18)
-    col_amount = col_start + 5   # 센터=G(7), 레슨=U(21)
+    col_start = layout.section_start.get(entry.section, 2)
+    offsets = _offsets(layout, entry.section)
+    col_day    = col_start + offsets["day"]
+    col_name   = col_start + offsets["name"]
+    col_amount = col_start + offsets["amount"]
 
     next_row = _find_next_entry_row(sheet, start_row, col=col_name)
     last_data_row = next_row - 1
@@ -181,12 +223,15 @@ def check_duplicate(sheet, entry: PaymentEntry, start_row: int = 12) -> bool:
     return False
 
 
-def _write_entry_row(sheet, entry: PaymentEntry) -> int:
+def _write_entry_row(
+    sheet, entry: PaymentEntry, layout: SheetLayout = LEGACY_LAYOUT
+) -> int:
     """시트의 다음 빈 행에 결제 내역을 기록하고 행 번호를 반환한다.
-    section에 따라 시작 컬럼이 달라진다 (센터: B열, 레슨: P열).
+    시작 컬럼과 칸 구성은 섹션·시트 양식에 따라 달라진다.
     """
-    col_start = SECTION_START_COL.get(entry.section, 2)
-    col_name = col_start + 2  # 회원명 컬럼: 센터=D(4), 레슨=R(18)
+    col_start = layout.section_start.get(entry.section, 2)
+    offsets = _offsets(layout, entry.section)
+    col_name = col_start + offsets["name"]
     row_num = _find_next_entry_row(sheet, start_row=12, col=col_name)
     entry_datetime = datetime(
         entry.entry_date.year, entry.entry_date.month, entry.entry_date.day
@@ -199,25 +244,33 @@ def _write_entry_row(sheet, entry: PaymentEntry) -> int:
         else entry_datetime
     )
 
-    # +6(부가제외금액)은 Excel 수식으로 별도 입력하므로 여기선 None
-    sheet.range((row_num, col_start)).value = [
-        date_val,                          # +0: 계약일
-        entry.entry_date.day,              # +1: 일
-        entry.name,                        # +2: 회원명
-        entry.category,                    # +3: 종목
-        entry.membership,                  # +4: 회원권 종류
-        entry.amount,                      # +5: 금액(부가세)
-        None,                              # +6: 금액(부가제외) — 수식으로 대체
-        entry.payment_method_excel,        # +7: 결제
-        entry.approval_number or None,     # +8: 승인번호
-        entry.fc or None,                  # +9: FC
-        entry.manager or None,             # +10: 담당
-        entry.note or None,                # +11: 기타
-    ]
+    values = {
+        "date": date_val,
+        "day": entry.entry_date.day,
+        "name": entry.name,
+        "category": entry.category,
+        "membership_type": entry.membership_type or None,
+        "membership": entry.membership,
+        "amount": entry.amount,
+        "vat": None,                       # 수식으로 별도 입력
+        "payment": entry.payment_method_excel,
+        "approval": entry.approval_number or None,
+        "fc": entry.fc or None,
+        "manager": entry.manager or None,
+        "note": entry.note or None,
+    }
+
+    # 오프셋 순서대로 한 줄에 써야 Excel 왕복이 한 번으로 끝난다
+    width = max(offsets.values()) + 1
+    row: list = [None] * width
+    for key, offset in offsets.items():
+        if offset >= 0:
+            row[offset] = values[key]
+    sheet.range((row_num, col_start)).value = row
 
     # 부가세 제외 금액: 엑셀 원본 양식과 동일한 수식을 삽입
-    sheet.range((row_num, col_start + 6)).formula = _vat_formula(
-        entry.section, col_start, row_num
+    sheet.range((row_num, col_start + offsets["vat"])).formula = _vat_formula(
+        entry.section, col_start, row_num, offsets
     )
 
     return row_num
@@ -363,10 +416,10 @@ def write_entry_to_daily(
     try:
         sheet = book.sheets["데일리매출"]
 
-        if not force and check_duplicate(sheet, entry):
+        if not force and check_duplicate(sheet, entry, layout=CURRENT_LAYOUT):
             return None, True
 
-        row_num = _write_entry_row(sheet, entry)
+        row_num = _write_entry_row(sheet, entry, CURRENT_LAYOUT)
         book.save()
         return row_num, False
     finally:
@@ -397,10 +450,43 @@ def write_entry_to_total_sales(
         )
         sheet = book.sheets[sheet_name]
 
-        if not force and check_duplicate(sheet, entry):
+        # 전체 총매는 신/재 칸이 없는 기존 양식을 그대로 쓴다
+        if not force and check_duplicate(sheet, entry, layout=LEGACY_LAYOUT):
             return None, True
 
-        row_num = _write_entry_row(sheet, entry)
+        row_num = _write_entry_row(sheet, entry, LEGACY_LAYOUT)
+        book.save()
+        return row_num, False
+    finally:
+        if not was_open:
+            book.app.quit()
+
+
+def write_entry_to_monthly_total(
+    monthly_path: str | Path,
+    entry: PaymentEntry,
+    password: str | None = None,
+    force: bool = False,
+) -> tuple[int | None, bool]:
+    """월별 총매 파일의 해당 연월 매출 시트에 결제 내역을 추가한다.
+
+    데일리와 같은 양식(신/재 칸 포함)이고, 시트명만 '26.10월매출' 형태로 다르다.
+
+    Returns:
+        (row_num, is_duplicate)
+    """
+    book, was_open = _open_book(monthly_path, password=password)
+    try:
+        sheet_name = find_monthly_file_sheet_name(
+            [s.name for s in book.sheets],
+            entry.entry_date.year, entry.entry_date.month, "매출",
+        )
+        sheet = book.sheets[sheet_name]
+
+        if not force and check_duplicate(sheet, entry, layout=CURRENT_LAYOUT):
+            return None, True
+
+        row_num = _write_entry_row(sheet, entry, CURRENT_LAYOUT)
         book.save()
         return row_num, False
     finally:

@@ -23,6 +23,7 @@ from src.services.expense_service import (
     EXPENSE_PAYMENT_METHODS,
     ExpenseEntry,
     write_expense_to_daily,
+    write_expense_to_monthly_total,
     write_expense_to_total,
 )
 from src.config.settings import get_password, get_expense_daily_sheet
@@ -39,11 +40,13 @@ class ExpenseDialog(QDialog):
     def __init__(
         self,
         daily_file: str | None = None,
+        monthly_total_file: str | None = None,
         total_sales_file: str | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.daily_file = daily_file
+        self.monthly_total_file = monthly_total_file
         self.total_sales_file = total_sales_file
         self._excel_saved = False  # 엑셀 저장 완료 여부
         self.setWindowTitle("지출 입력 및 보고 문구 생성")
@@ -212,6 +215,16 @@ class ExpenseDialog(QDialog):
                 results.append(f"총매출 파일: {row}행에 입력 완료")
             except Exception as exc:
                 errors.append(f"총매출 파일 오류: {exc}")
+
+        # 월별 총매 파일 (설정된 경우에만 — 미설정은 오류가 아니다)
+        if self.monthly_total_file:
+            try:
+                row = write_expense_to_monthly_total(
+                    self.monthly_total_file, entry, password=get_password()
+                )
+                results.append(f"월별 총매 파일: {row}행에 입력 완료")
+            except Exception as exc:
+                errors.append(f"월별 총매 파일 오류: {exc}")
 
         if errors:
             QMessageBox.critical(self, "오류", "\n".join(errors))

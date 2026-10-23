@@ -21,7 +21,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from src.services.entry_service import PaymentEntry, write_entry_to_daily, write_entry_to_total_sales
+from src.services.entry_service import (
+    PaymentEntry,
+    write_entry_to_daily,
+    write_entry_to_monthly_total,
+    write_entry_to_total_sales,
+)
 from src.config.settings import get_password
 from src.config.constants import PAYMENT_METHODS, SALES_CATEGORIES, LESSON_ONLY_CATEGORIES
 from src.ui._kakao_send_widget import KakaoSendWidget
@@ -47,11 +52,13 @@ class PaymentDialog(QDialog):
         self,
         daily_file: str | None = None,
         total_sales_file: str | None = None,
+        monthly_total_file: str | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.daily_file = daily_file
         self.total_sales_file = total_sales_file
+        self.monthly_total_file = monthly_total_file
         self._excel_saved = False  # 엑셀 저장 완료 여부
         self.setWindowTitle("결제 입력 및 보고 문구 생성")
         self.setMinimumWidth(560)
@@ -266,6 +273,7 @@ class PaymentDialog(QDialog):
             fc=self.fc_input.text().strip(),
             manager=self.manager_input.text().strip(),
             note="",  # 특이사항은 카톡 문구 전용, 엑셀에는 기록하지 않음
+            membership_type=self.membership_type_combo.currentText(),
         )
 
     # ── 슬롯 ──────────────────────────────────────────────────────
@@ -326,6 +334,22 @@ class PaymentDialog(QDialog):
                     results.append(f"총매출 파일: {row}행에 입력 완료")
             except Exception as exc:
                 errors.append(f"총매출 파일 오류: {exc}")
+
+        # 월별 총매 파일 입력 (설정된 경우에만 — 미설정은 오류가 아니다)
+        if self.monthly_total_file:
+            try:
+                row, is_dup = write_entry_to_monthly_total(
+                    self.monthly_total_file,
+                    entry,
+                    password=get_password(),
+                    force=force,
+                )
+                if is_dup:
+                    duplicates.append("월별 총매 파일")
+                else:
+                    results.append(f"월별 총매 파일: {row}행에 입력 완료")
+            except Exception as exc:
+                errors.append(f"월별 총매 파일 오류: {exc}")
 
         # 중복 감지 → 강제 입력 여부 확인
         if duplicates and not force:

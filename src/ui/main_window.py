@@ -44,6 +44,7 @@ from src.config.settings import (
     _KEY_DAILY_FILE,
     _KEY_TOTAL_SALES_FILE,
     get_auto_update_check,
+    get_monthly_total_file,
     get_nateon_webhook_url,
     load_settings,
     save_settings,
@@ -257,10 +258,12 @@ class MainWindow(QMainWindow):
 
         self._last_checked_date = date.today()
         self._last_checked_month = date.today().month
+        self._last_checked_year = date.today().year
         timer = QTimer(self)
         timer.timeout.connect(self._check_date_change)
         timer.start(60_000)
         QTimer.singleShot(2000, self._check_monthly_sheet)
+        QTimer.singleShot(2500, self._check_yearly_file)
         QTimer.singleShot(1500, self._do_daily_consultation_rollover)
         QTimer.singleShot(3000, self._refresh_visitor_panel)
 
@@ -675,6 +678,61 @@ class MainWindow(QMainWindow):
         if today.month != self._last_checked_month:
             self._last_checked_month = today.month
             self._check_monthly_sheet()
+        if today.year != self._last_checked_year:
+            self._last_checked_year = today.year
+            self._check_yearly_file()
+
+    def _check_yearly_file(self) -> None:
+        """전체 총매 파일이 지난 연도 파일이면 새 연도 파일 생성을 제안한다."""
+        if not self._path_total or not Path(self._path_total).exists():
+            return
+        from src.services.yearly_total_service import (
+            build_year_path, create_next_year_file, file_year,
+        )
+
+        today = date.today()
+        current = file_year(self._path_total)
+        if current is None or current >= today.year:
+            return
+
+        try:
+            target = build_year_path(self._path_total, today.year)
+        except ValueError as exc:
+            QMessageBox.warning(self, "새 연도 총매출 파일", str(exc))
+            return
+
+        if target.exists():
+            self._set_total_path(str(target))
+            return
+
+        reply = QMessageBox.question(
+            self, "새 연도 총매출 파일",
+            f"전체 총매출 파일이 {current}년 파일입니다.\n"
+            f"{today.year}년 파일을 만들까요?\n\n"
+            f"  {target.name}\n\n"
+            f"{current}년 파일을 복사해 1월 시트를 만들고, 복사본에서 "
+            f"{current}년 월 시트는 지웁니다.\n"
+            f"원본 {current}년 파일은 그대로 둡니다.",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        try:
+            from src.config.settings import get_password
+            created, removed = create_next_year_file(
+                self._path_total, today.year, get_password()
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "새 연도 총매출 파일 생성 실패", str(exc))
+            return
+
+        self._set_total_path(str(created))
+        detail = f"\n정리한 {current}년 시트: {len(removed)}개" if removed else ""
+        QMessageBox.information(
+            self, "완료",
+            f"{today.year}년 총매출 파일을 만들었습니다.\n{created.name}{detail}"
+        )
 
     def _check_monthly_sheet(self) -> None:
         if not self._path_total or not Path(self._path_total).exists():
@@ -871,6 +929,7 @@ class MainWindow(QMainWindow):
         PaymentDialog(
             daily_file=self._path_daily or None,
             total_sales_file=self._path_total or None,
+            monthly_total_file=get_monthly_total_file() or None,
             parent=self,
         ).exec()
 
@@ -881,6 +940,7 @@ class MainWindow(QMainWindow):
         ExpenseDialog(
             daily_file=self._path_daily or None,
             total_sales_file=self._path_total or None,
+            monthly_total_file=get_monthly_total_file() or None,
             parent=self,
         ).exec()
 

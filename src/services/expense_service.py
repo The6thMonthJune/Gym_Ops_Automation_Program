@@ -17,7 +17,10 @@ from pathlib import Path
 
 import xlwings as xw
 
-from src.services.total_sales_service import find_monthly_expense_sheet_name
+from src.services.total_sales_service import (
+    find_monthly_expense_sheet_name,
+    find_monthly_file_sheet_name,
+)
 
 # 데이터 시작 행
 _DAILY_START_ROW = 6
@@ -149,6 +152,56 @@ def write_expense_to_daily(
     finally:
         if not was_open:
             book.app.quit()
+
+
+def write_expense_to_monthly_total(
+    monthly_path: str | Path,
+    entry: ExpenseEntry,
+    password: str | None = None,
+) -> int:
+    """월별 총매 파일의 해당 월 지출 시트('26.10월지출')에 기록한다.
+
+    양식은 데일리와 같으므로 데이터 시작 행도 동일하다.
+    Returns: 기록된 행 번호
+    """
+    book, was_open = _open_book_with_password(monthly_path, password)
+    try:
+        sheet_name = find_monthly_file_sheet_name(
+            [s.name for s in book.sheets],
+            entry.entry_date.year, entry.entry_date.month, "지출",
+        )
+        row_num = _write_row(book.sheets[sheet_name], entry, _DAILY_START_ROW)
+        book.save()
+        return row_num
+    finally:
+        if not was_open:
+            book.app.quit()
+
+
+def _open_book_with_password(path: str | Path, password: str | None):
+    """열려 있으면 그 인스턴스를, 아니면 숨김 인스턴스로 연 book을 반환한다."""
+    resolved = Path(path).resolve()
+    try:
+        for app in xw.apps:
+            for book in app.books:
+                try:
+                    if Path(book.fullname).resolve() == resolved:
+                        return book, True
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    new_app = xw.App(visible=False)
+    new_app.display_alerts = False
+    try:
+        kwargs = {"update_links": 0, "ignore_read_only_recommended": True}
+        if password:
+            kwargs["password"] = password
+        return new_app.books.open(str(resolved), **kwargs), False
+    except Exception:
+        new_app.quit()
+        raise
 
 
 def write_expense_to_total(
