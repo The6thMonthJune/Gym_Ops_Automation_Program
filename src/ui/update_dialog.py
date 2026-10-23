@@ -39,12 +39,15 @@ _GRAY = (
 
 
 class _CheckThread(QThread):
-    """새 버전 확인. 실패해도 조용히 None을 돌려준다."""
+    """새 버전 확인. 실패 사유를 함께 돌려줘야 '최신 버전'과 구분할 수 있다."""
 
-    done = Signal(object)  # ReleaseInfo | None
+    done = Signal(object, str)  # (최신 릴리스 | None, 실패 사유)
 
     def run(self) -> None:
-        self.done.emit(update_service.check_for_update())
+        try:
+            self.done.emit(update_service.fetch_latest_release(), "")
+        except Exception as exc:
+            self.done.emit(None, f"{type(exc).__name__}: {exc}")
 
 
 class _DownloadThread(QThread):
@@ -217,25 +220,60 @@ class UpdateChecker:
         self._thread.done.connect(self._on_checked)
         self._thread.start()
 
-    def _on_checked(self, release: ReleaseInfo | None) -> None:
+    def _on_checked(self, release: ReleaseInfo | None, error: str) -> None:
+        if error:
+            self._report(
+                "업데이트 확인 실패",
+                "최신 버전 정보를 가져오지 못했습니다.\n"
+                "인터넷 연결이나 방화벽을 확인해주세요.\n\n"
+                f"{error}",
+                offer_page=True,
+            )
+            return
+
         if release is None:
-            if not self._silent:
-                QMessageBox.information(
-                    self._parent, "업데이트",
-                    f"현재 최신 버전입니다. (v{APP_VERSION})\n"
-                    "새 버전이 없거나 인터넷에 연결되지 않았습니다."
-                )
+            self._report(
+                "업데이트 확인 실패",
+                "최신 릴리스에서 GymOps.exe 파일을 찾지 못했습니다.",
+                offer_page=True,
+            )
+            return
+
+        if not update_service.is_newer(release.version):
+            self._report(
+                "업데이트",
+                f"현재 최신 버전입니다.\n\n"
+                f"설치된 버전: v{APP_VERSION}\n"
+                f"서버 최신 버전: v{release.version}",
+            )
             return
 
         if self._silent and release.version == get_update_skip_version():
             return
 
         if not update_service.is_frozen():
-            QMessageBox.information(
-                self._parent, "업데이트",
+            self._report(
+                "업데이트",
                 f"새 버전 v{release.version} 이 있습니다.\n"
-                "개발 환경에서는 자동 설치하지 않습니다."
+                "개발 환경에서는 자동 설치하지 않습니다.",
+                always=True,
             )
             return
 
         UpdateDialog(release, parent=self._parent).exec()
+
+    def _report(self, title: str, message: str, offer_page: bool = False,
+                always: bool = False) -> None:
+        """수동 확인일 때만 결과를 알린다. 자동 확인은 조용히 넘어간다."""
+        if self._silent and not always:
+            return
+        if not offer_page:
+            QMessageBox.information(self._parent, title, message)
+            return
+
+        box = QMessageBox(QMessageBox.Warning, title, message, parent=self._parent)
+        open_btn = box.addButton("릴리스 페이지 열기", QMessageBox.AcceptRole)
+        box.addButton("닫기", QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() is open_btn:
+            QDesktopServices.openUrl(QUrl(update_service.RELEASES_PAGE))

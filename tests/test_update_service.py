@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from src.services import update_service
@@ -46,18 +44,13 @@ class TestIsNewer:
 class TestFetchLatestRelease:
     def _patch_api(self, monkeypatch, payload):
         class _Response:
-            def read(self):
-                return json.dumps(payload).encode("utf-8")
+            def json(self):
+                return payload
 
-            def __enter__(self):
-                return self
+            def raise_for_status(self):
+                return None
 
-            def __exit__(self, *args):
-                return False
-
-        monkeypatch.setattr(
-            update_service.urllib.request, "urlopen", lambda *a, **k: _Response()
-        )
+        monkeypatch.setattr(update_service.requests, "get", lambda *a, **k: _Response())
 
     def test_picks_exe_asset(self, monkeypatch):
         self._patch_api(monkeypatch, _PAYLOAD)
@@ -78,7 +71,7 @@ class TestFetchLatestRelease:
         def _boom(*a, **k):
             raise OSError("네트워크 없음")
 
-        monkeypatch.setattr(update_service.urllib.request, "urlopen", _boom)
+        monkeypatch.setattr(update_service.requests, "get", _boom)
         assert update_service.check_for_update() is None
 
 

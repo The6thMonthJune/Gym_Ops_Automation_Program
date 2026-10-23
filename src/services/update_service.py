@@ -8,12 +8,12 @@
 """
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+
+import requests
 
 from src.config.constants import APP_VERSION
 
@@ -96,9 +96,11 @@ def cleanup_leftovers() -> None:
 
 def fetch_latest_release(timeout: int = _TIMEOUT) -> ReleaseInfo | None:
     """GitHub 최신 릴리스 정보를 읽는다. EXE 자산이 없으면 None."""
-    request = urllib.request.Request(_LATEST_API, headers=_HEADERS)
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    # urllib 대신 requests를 쓴다. 구글 시트 연동이 이미 requests로 동작하므로
+    # 센터 PC에서 인증서·프록시 설정이 검증된 경로다.
+    response = requests.get(_LATEST_API, headers=_HEADERS, timeout=timeout)
+    response.raise_for_status()
+    payload = response.json()
 
     tag = str(payload.get("tag_name") or "")
     asset = next(
@@ -136,12 +138,14 @@ def download_release(release: ReleaseInfo, progress=None) -> Path:
     target = _download_path()
     target.unlink(missing_ok=True)
 
-    request = urllib.request.Request(release.download_url, headers=_HEADERS)
-    with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
+    with requests.get(
+        release.download_url, headers=_HEADERS, timeout=_TIMEOUT, stream=True
+    ) as response:
+        response.raise_for_status()
         total = int(response.headers.get("Content-Length") or release.size or 0)
         received = 0
         with target.open("wb") as out:
-            while chunk := response.read(_CHUNK):
+            for chunk in response.iter_content(_CHUNK):
                 out.write(chunk)
                 received += len(chunk)
                 if progress:
