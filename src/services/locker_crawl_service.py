@@ -225,6 +225,92 @@ def _make_driver(log: Callable[[str], None] | None = None):
     return webdriver.Chrome(options=opts)
 
 
+# ── 로그인 진입 ────────────────────────────────────────────────────────────────
+# 첫 화면에서 로그인 폼까지 들어가는 단계. 브로제이는 공개 API가 없어 DOM에 의존하므로
+# 사이트가 마크업을 바꾸면 여기가 가장 먼저 깨진다. 셀렉터를 여러 개 두고, 그래도
+# 실패하면 화면에 뭐가 있었는지 그대로 보여줘서 원격에서 원인을 잡을 수 있게 한다.
+
+_LOGIN_FIELD_ID = "login_id"
+
+# text()는 직계 텍스트 노드만 본다. <button><span>로그인</span></button> 같은
+# 중첩 구조도 잡으려면 . 으로 비교해야 한다.
+_LOGIN_ENTRY_XPATHS = [
+    "//button[contains(., '로그인 페이지')]",
+    "//a[contains(., '로그인 페이지')]",
+    "//*[@role='button'][contains(., '로그인 페이지')]",
+    "//button[contains(., '로그인')]",
+    "//a[contains(., '로그인')]",
+    "//input[@type='button' or @type='submit'][contains(@value, '로그인')]",
+]
+
+
+def _open_login_form(driver, wait, log: Callable[[str], None]) -> None:
+    """로그인 입력란이 보일 때까지 진입한다. 이미 보이면 아무것도 하지 않는다."""
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.support.ui import WebDriverWait
+
+    if driver.find_elements(By.ID, _LOGIN_FIELD_ID):
+        log("로그인 폼이 이미 표시됨")
+        return
+
+    for xpath in _LOGIN_ENTRY_XPATHS:
+        elements = driver.find_elements(By.XPATH, xpath)
+        if not elements:
+            continue
+        try:
+            elements[0].click()
+        except Exception:
+            continue
+        log(f"로그인 페이지 진입 ({xpath})")
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.ID, _LOGIN_FIELD_ID))
+        )
+        return
+
+    # 버튼 없이 바로 폼이 뜨는 경우를 대비해 한 번 더 기다려본다
+    wait.until(EC.presence_of_element_located((By.ID, _LOGIN_FIELD_ID)))
+
+
+def _visible_button_texts(driver, limit: int = 15) -> list[str]:
+    """화면에 보이는 버튼·링크 문구를 모은다. 셀렉터가 깨졌을 때 단서가 된다."""
+    from selenium.webdriver.common.by import By
+
+    texts: list[str] = []
+    try:
+        for element in driver.find_elements(By.XPATH, "//button | //a | //input[@type='submit']"):
+            label = (element.text or element.get_attribute("value") or "").strip()
+            if label and label not in texts:
+                texts.append(label)
+            if len(texts) >= limit:
+                break
+    except Exception:
+        pass
+    return texts
+
+
+def _login_help_text(driver, exc: Exception) -> str:
+    """원격에서 원인을 짚을 수 있도록 현재 화면 상태를 함께 담는다."""
+    try:
+        url = driver.current_url
+        title = driver.title
+    except Exception:
+        url = title = "(확인 불가)"
+
+    buttons = _visible_button_texts(driver)
+    button_line = ", ".join(buttons) if buttons else "(없음)"
+
+    return (
+        "브로제이 로그인 화면으로 들어가지 못했습니다.\n\n"
+        f"현재 주소: {url}\n"
+        f"페이지 제목: {title}\n"
+        f"화면의 버튼·링크: {button_line}\n\n"
+        "사이트 화면 구성이 바뀌었을 수 있습니다.\n"
+        "위 내용을 그대로 제작자에게 전달해주세요.\n\n"
+        f"원본 오류: {exc}"
+    )
+
+
 def _parse_button_text(text: str) -> tuple[int, str, date | None, bool] | None:
     """로컬뷰 버튼 텍스트 → (전역번호, 이름, 만료일, is_holding).
 
@@ -314,20 +400,17 @@ def fetch_locker_records(
     all_records: list[LockerRecord] = []
 
     try:
-        # ── 1. 로그인 (DNS 실패 시 최대 3회 재시도) ──────────────────
-        from selenium.common.exceptions import TimeoutException
+        # ── 1. 로그인 폼까지 진입 (네트워크 불안정 대비 최대 3회) ──────
         for attempt in range(1, 4):
             _log(f"브로제이 접속 중... (시도 {attempt}/3)")
-            driver.get(_BROJ_BASE)
             try:
-                wait.until(EC.element_to_be_clickable(
-                    (By.XPATH, "//button[contains(text(),'로그인 페이지')]")
-                )).click()
-                break  # 성공 시 루프 탈출
-            except TimeoutException:
+                driver.get(_BROJ_BASE)
+                _open_login_form(driver, wait, _log)
+                break
+            except Exception as exc:
                 if attempt == 3:
-                    raise RuntimeError("브로제이 접속 실패 — 로그인 버튼을 찾을 수 없습니다. (DNS 오류 또는 네트워크 불안정)")
-                _log(f"접속 실패, {5}초 후 재시도...")
+                    raise RuntimeError(_login_help_text(driver, exc)) from exc
+                _log(f"접속 실패, 5초 후 재시도... ({exc})")
                 time.sleep(5)
 
         wait.until(EC.presence_of_element_located((By.ID, "login_id"))).send_keys(username)
