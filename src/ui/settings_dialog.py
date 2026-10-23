@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -29,7 +28,6 @@ from src.config.settings import (
     _KEY_EXPENSE_DAILY_SHEET,
     _KEY_GEMINI_API_KEY,
     _KEY_GOOGLE_CREDENTIALS_PATH,
-    _KEY_MONTHLY_TOTAL_FILE,
     _KEY_NATEON_WEBHOOK_URL,
     _KEY_NEW_DB_SPREADSHEET_ID,
     _KEY_PHONE_IP,
@@ -70,18 +68,6 @@ class SettingsDialog(QDialog):
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText("총매출 파일 비밀번호 (없으면 공란)")
         form.addRow("총매출 파일 비밀번호:", self.password_input)
-
-        monthly_row = QHBoxLayout()
-        self.monthly_total_input = QLineEdit()
-        self.monthly_total_input.setPlaceholderText(
-            "월별 총매 엑셀 파일 (시트명 예: 26.10월매출)"
-        )
-        monthly_row.addWidget(self.monthly_total_input)
-        monthly_browse = QPushButton("찾기")
-        monthly_browse.setFixedWidth(52)
-        monthly_browse.clicked.connect(self._browse_monthly_total)
-        monthly_row.addWidget(monthly_browse)
-        form.addRow("월별 총매 파일:", monthly_row)
 
         self.expense_sheet_input = QLineEdit()
         self.expense_sheet_input.setPlaceholderText("기본값: 데일리지출 (변경 시에만 입력)")
@@ -217,7 +203,6 @@ class SettingsDialog(QDialog):
         settings = load_settings()
         self.password_input.setText(settings.get(_KEY_TOTAL_SALES_PASSWORD, ""))
         self.expense_sheet_input.setText(settings.get(_KEY_EXPENSE_DAILY_SHEET, ""))
-        self.monthly_total_input.setText(settings.get(_KEY_MONTHLY_TOTAL_FILE, ""))
         self.phone_ip_input.setText(settings.get(_KEY_PHONE_IP, ""))
         self.nateon_webhook_input.setText(settings.get(_KEY_NATEON_WEBHOOK_URL, ""))
         self.sms_port_input.setText(str(settings.get(_KEY_SMS_GATEWAY_PORT, "") or ""))
@@ -248,13 +233,6 @@ class SettingsDialog(QDialog):
             self._apt_list.addItem(name)
         self._apt_input.clear()
 
-    def _browse_monthly_total(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, "월별 총매 엑셀 파일 선택", "", "Excel Files (*.xlsx)"
-        )
-        if path:
-            self.monthly_total_input.setText(path)
-
     def _check_update(self) -> None:
         """수동 확인. 최신 버전이어도 결과를 알려준다."""
         from src.ui.update_dialog import UpdateChecker
@@ -270,7 +248,6 @@ class SettingsDialog(QDialog):
         settings = load_settings()
         settings[_KEY_TOTAL_SALES_PASSWORD] = self.password_input.text()
         settings[_KEY_EXPENSE_DAILY_SHEET] = self.expense_sheet_input.text().strip()
-        settings[_KEY_MONTHLY_TOTAL_FILE] = self.monthly_total_input.text().strip()
         settings[_KEY_PHONE_IP] = self.phone_ip_input.text().strip()
         settings[_KEY_NATEON_WEBHOOK_URL] = self.nateon_webhook_input.text().strip()
         try:

@@ -42,9 +42,9 @@ from src.ui.update_dialog import UpdateChecker
 from src.config.constants import APP_NAME
 from src.config.settings import (
     _KEY_DAILY_FILE,
+    _KEY_MONTHLY_TOTAL_FILE,
     _KEY_TOTAL_SALES_FILE,
     get_auto_update_check,
-    get_monthly_total_file,
     get_nateon_webhook_url,
     load_settings,
     save_settings,
@@ -250,6 +250,7 @@ class MainWindow(QMainWindow):
         self.setAcceptDrops(True)
         self._path_daily = ""
         self._path_total = ""
+        self._path_monthly = ""
         self._setup_ui()
         self._load_saved_paths()
         self._auto_setup_today_file()
@@ -358,6 +359,10 @@ class MainWindow(QMainWindow):
         self._total_path_row = _SlimFileRow("총매출 파일")
         self._total_path_row.browse_clicked.connect(self._browse_total)
         lay.addWidget(self._total_path_row)
+
+        self._monthly_path_row = _SlimFileRow("월별 총매 파일")
+        self._monthly_path_row.browse_clicked.connect(self._browse_monthly)
+        lay.addWidget(self._monthly_path_row)
 
         return _shadow_card(lay)
 
@@ -603,6 +608,18 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "데일리 엑셀 파일 선택", "", "Excel Files (*.xlsx)")
         if path:
             self._set_daily_path(path)
+
+    def _set_monthly_path(self, path: str) -> None:
+        self._path_monthly = path
+        self._monthly_path_row.set_path(path)
+        self._save_paths()
+
+    def _browse_monthly(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "월별 총매 엑셀 파일 선택", "", "Excel Files (*.xlsx)"
+        )
+        if path:
+            self._set_monthly_path(path)
 
     def _browse_total(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "총매출 엑셀 파일 선택", "", "Excel Files (*.xlsx)")
@@ -929,7 +946,7 @@ class MainWindow(QMainWindow):
         PaymentDialog(
             daily_file=self._path_daily or None,
             total_sales_file=self._path_total or None,
-            monthly_total_file=get_monthly_total_file() or None,
+            monthly_total_file=self._path_monthly or None,
             parent=self,
         ).exec()
 
@@ -940,7 +957,7 @@ class MainWindow(QMainWindow):
         ExpenseDialog(
             daily_file=self._path_daily or None,
             total_sales_file=self._path_total or None,
-            monthly_total_file=get_monthly_total_file() or None,
+            monthly_total_file=self._path_monthly or None,
             parent=self,
         ).exec()
 
@@ -1152,9 +1169,13 @@ class MainWindow(QMainWindow):
         if path := s.get(_KEY_TOTAL_SALES_FILE):
             self._path_total = path
             self._total_path_row.set_path(path)
+        if path := s.get(_KEY_MONTHLY_TOTAL_FILE):
+            self._path_monthly = path
+            self._monthly_path_row.set_path(path)
 
     def _save_paths(self) -> None:
         s = load_settings()
         s[_KEY_DAILY_FILE] = self._path_daily
         s[_KEY_TOTAL_SALES_FILE] = self._path_total
+        s[_KEY_MONTHLY_TOTAL_FILE] = self._path_monthly
         save_settings(s)
