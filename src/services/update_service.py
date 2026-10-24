@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -177,6 +178,24 @@ def apply_update(new_exe: Path) -> Path:
     return exe
 
 
+# PyInstaller onefile 부트로더가 자식에게 물려주면 안 되는 환경변수.
+# _MEIPASS2가 설정된 채로 새 EXE를 띄우면 "압축은 이미 풀렸다"고 판단해
+# 부모의 임시 폴더를 그대로 쓴다. 곧이어 부모가 종료되며 그 폴더를 지우기 때문에
+# 자식은 뒤늦게 불러오는 모듈부터 ModuleNotFoundError로 깨진다.
+_PYI_ENV_PREFIXES = ("_MEIPASS", "_PYI")
+
+
+def _clean_child_env() -> dict[str, str]:
+    """새 프로세스가 자기 몫의 압축을 새로 풀도록 부트로더 변수를 걷어낸다."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(_PYI_ENV_PREFIXES)
+    }
+
+
 def restart(exe: Path | None = None) -> None:
     """새 EXE를 띄운다. 호출한 쪽에서 현재 프로세스를 종료해야 한다."""
-    subprocess.Popen([str(exe or current_exe())], close_fds=True)
+    subprocess.Popen(
+        [str(exe or current_exe())], close_fds=True, env=_clean_child_env()
+    )

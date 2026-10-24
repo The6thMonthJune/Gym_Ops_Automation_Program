@@ -50,6 +50,7 @@ jobs:
           --add-data "assets;assets"
           --add-data "drivers/msedgedriver.exe;drivers"
           --collect-all holidays
+          --hidden-import PySide6.QtCharts
           --hidden-import holidays.countries.KR
           --collect-all selenium
           run.py

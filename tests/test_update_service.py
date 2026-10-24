@@ -100,3 +100,38 @@ class TestApplyUpdate:
 
         assert exe.read_bytes() == b"old"  # 교체에 실패해도 기존 EXE는 살아 있다
         assert not (tmp_path / "GymOps.exe.old").exists()
+
+
+class TestRestartEnvironment:
+    """onefile EXE가 자식에게 부트로더 변수를 물려주면 자식이 부모의 임시 폴더를 쓴다.
+
+    부모가 종료되며 그 폴더를 지우므로, 자식은 늦게 import하는 모듈부터 깨진다.
+    (업데이트 직후 PySide6.QtCharts를 못 찾던 증상)
+    """
+
+    def test_strips_pyinstaller_vars_but_keeps_the_rest(self, monkeypatch):
+        monkeypatch.setenv("_MEIPASS2", "/tmp/_MEI123")
+        monkeypatch.setenv("_PYI_ARCHIVE_FILE", "C:/x/GymOps.exe")
+        monkeypatch.setenv("PATH", "/usr/bin")
+
+        env = update_service._clean_child_env()
+
+        assert "_MEIPASS2" not in env
+        assert "_PYI_ARCHIVE_FILE" not in env
+        assert env["PATH"] == "/usr/bin"
+
+    def test_restart_launches_with_cleaned_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("_MEIPASS2", "/tmp/_MEI123")
+        captured = {}
+
+        def _fake_popen(args, **kwargs):
+            captured["args"] = args
+            captured["env"] = kwargs.get("env")
+
+        monkeypatch.setattr(update_service.subprocess, "Popen", _fake_popen)
+        exe = tmp_path / "GymOps.exe"
+
+        update_service.restart(exe)
+
+        assert captured["args"] == [str(exe)]
+        assert "_MEIPASS2" not in captured["env"]
