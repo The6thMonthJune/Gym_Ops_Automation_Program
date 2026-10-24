@@ -277,3 +277,76 @@ class TestNavHelpText:
         assert "락커관리 메뉴 진입" in message
         assert "회원관리, 매출관리" in message
         assert "iframe 개수: 2" in message
+
+
+class _FrameDriver(_FakeDriver):
+    """iframe 전환을 흉내낸다. 전환 상태에 따라 보이는 요소가 달라진다."""
+
+    def __init__(self, top, frames):
+        super().__init__(top)
+        self._top = top
+        self._frames = frames
+        self.context = "top"
+
+    @property
+    def _table(self):
+        return self._top if self.context == "top" else self._frames[self.context]
+
+    def frame(self, frame):
+        self.context = self._top["iframe"].index(frame)
+
+    def default_content(self):
+        self.context = "top"
+
+
+class TestFrameContext:
+    """로그인 폼이 iframe 안에 있으면 그 안에 갇힌 채로 메뉴를 찾아 빈 화면만 봤다."""
+
+    def test_password_lookup_leaves_caller_inside_frame(self):
+        frame = _FakeElement()
+        password = _FakeElement(attrs={"type": "password"})
+        driver = _FrameDriver(
+            top={_PW: [], "iframe": [frame]},
+            frames={0: {_PW: [password]}},
+        )
+
+        assert svc._find_password_input(driver) is password
+        assert driver.context == 0      # 입력하려면 프레임 안에 있어야 한다
+
+    def test_submit_returns_to_top_document(self):
+        frame = _FakeElement()
+        password = _FakeElement(attrs={"type": "password"})
+        id_input = _FakeElement(attrs={"type": "text"})
+        submit = _FakeElement("로그인")
+        driver = _FrameDriver(
+            top={_PW: [], "iframe": [frame]},
+            frames={0: {
+                _PW: [password],
+                "//input[@type='text' or @type='email' or @type='tel' or not(@type)]": [id_input],
+                "//button[@type='submit']": [submit],
+            }},
+        )
+
+        svc._submit_login(driver, "id", "pw", lambda m: None)
+
+        assert submit.clicked
+        assert driver.context == "top"  # 이후 메뉴 탐색이 최상위에서 이뤄져야 한다
+
+    def test_top_level_search_restores_context_when_not_found(self):
+        frame = _FakeElement()
+        driver = _FrameDriver(top={_PW: [], "iframe": [frame]}, frames={0: {_PW: []}})
+
+        assert svc._find_password_input(driver) is None
+        assert driver.context == "top"
+
+
+class TestMenuSpelling:
+    """메뉴 표기가 '락커'인지 '락카'인지 확실치 않아 둘 다 받는다."""
+
+    def test_accepts_either_spelling(self):
+        for spelling in ("락커관리", "락카관리"):
+            driver = _FakeDriver({f"//*[contains(., '{spelling}')]": [_FakeElement(spelling)]})
+            assert svc._wait_for_any_text(driver, svc._LOCKER_MENU_TEXTS, timeout=0) == spelling
+
+    def test_returns_none_when_no_spelling_matches(self):
+        assert svc._wait_for_any_text(_FakeDriver({}), svc._LOCKER_MENU_TEXTS, timeout=0) is None

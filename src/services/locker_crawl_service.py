@@ -232,6 +232,9 @@ def _make_driver(log: Callable[[str], None] | None = None):
 
 # 로그인 입력란은 id가 바뀔 수 있다. type="password"는 거의 바뀌지 않으므로
 # 비밀번호 칸을 기준점으로 잡고 아이디 칸·제출 버튼을 구조로 찾는다.
+# 메뉴 표기가 '락커'인지 '락카'인지 확실치 않아 둘 다 받는다.
+_LOCKER_MENU_TEXTS = ("락커관리", "락카관리", "락커 관리", "락카 관리")
+
 _PASSWORD_XPATH = "//input[@type='password']"
 _ID_XPATHS = [
     "//input[@id='login_id']",
@@ -252,6 +255,14 @@ _LOGIN_ENTRY_XPATHS = [
     "//*[@role='button'][contains(., '로그인')]",
     "//input[@type='button' or @type='submit'][contains(@value, '로그인')]",
 ]
+
+
+def _to_top(driver) -> None:
+    """최상위 문서로 돌아온다. iframe 안에 갇힌 채 탐색하면 아무것도 못 찾는다."""
+    try:
+        driver.switch_to.default_content()
+    except Exception:
+        pass
 
 
 def _visible(elements: list) -> list:
@@ -277,14 +288,13 @@ def _find_password_input(driver):
     for frame in driver.find_elements(By.TAG_NAME, "iframe"):
         try:
             driver.switch_to.frame(frame)
-            found = _visible(driver.find_elements(By.XPATH, _PASSWORD_XPATH))
-            if found:
-                return found[0]
         except Exception:
-            pass
-        finally:
-            if not found:
-                driver.switch_to.default_content()
+            driver.switch_to.default_content()
+            continue
+        found = _visible(driver.find_elements(By.XPATH, _PASSWORD_XPATH))
+        if found:
+            return found[0]  # 호출자가 입력을 마친 뒤 default_content로 돌아와야 한다
+        driver.switch_to.default_content()
     return None
 
 
@@ -345,16 +355,20 @@ def _submit_login(driver, username: str, password: str, log: Callable[[str], Non
     password_input.send_keys(password)
     log("아이디·비밀번호 입력 완료")
 
-    for xpath in _SUBMIT_XPATHS:
-        buttons = _visible(driver.find_elements(By.XPATH, xpath))
-        if buttons:
-            buttons[0].click()
-            log(f"로그인 버튼 클릭 ({xpath})")
-            return
-
-    # 버튼을 못 찾으면 엔터로 제출을 시도한다
-    password_input.send_keys(Keys.RETURN)
-    log("로그인 버튼을 찾지 못해 엔터로 제출")
+    try:
+        for xpath in _SUBMIT_XPATHS:
+            buttons = _visible(driver.find_elements(By.XPATH, xpath))
+            if buttons:
+                buttons[0].click()
+                log(f"로그인 버튼 클릭 ({xpath})")
+                return
+        # 버튼을 못 찾으면 엔터로 제출을 시도한다
+        password_input.send_keys(Keys.RETURN)
+        log("로그인 버튼을 찾지 못해 엔터로 제출")
+    finally:
+        # 로그인 폼이 iframe 안에 있었다면 그 안에 머문 채로 끝난다.
+        # 최상위로 돌아오지 않으면 이후 메뉴 탐색이 빈 화면을 보게 된다.
+        _to_top(driver)
 
 
 def _input_field_summary(driver, limit: int = 10) -> list[str]:
@@ -430,11 +444,29 @@ def _wait_for_text(driver, text: str, timeout: int = 30) -> bool:
     from selenium.webdriver.common.by import By
 
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    while True:
         if _visible(driver.find_elements(By.XPATH, f"//*[contains(., '{text}')]")):
             return True
+        if time.monotonic() >= deadline:
+            return False
         time.sleep(0.5)
-    return False
+
+
+def _wait_for_any_text(driver, texts, timeout: int = 30) -> str | None:
+    """여러 후보 문구 중 먼저 나타나는 것을 돌려준다. 없으면 None."""
+    deadline = time.monotonic() + timeout
+    while True:
+        for text in texts:
+            if _wait_for_text(driver, text, timeout=0):
+                return text
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(0.5)
+
+
+def _click_any_text(driver, texts, log: Callable[[str], None]) -> bool:
+    """후보 문구를 순서대로 눌러본다."""
+    return any(_click_by_text(driver, text, log) for text in texts)
 
 
 def _click_by_text(driver, text: str, log: Callable[[str], None]) -> bool:
@@ -463,10 +495,30 @@ def _click_by_text(driver, text: str, log: Callable[[str], None]) -> bool:
     return False
 
 
+def _scan_frames_for_buttons(driver, limit: int = 20) -> str:
+    """최상위에 아무것도 없을 때 각 iframe 안의 버튼 문구를 모아본다."""
+    from selenium.webdriver.common.by import By
+
+    lines: list[str] = []
+    frames = driver.find_elements(By.TAG_NAME, "iframe")
+    for index, frame in enumerate(frames):
+        _to_top(driver)
+        try:
+            driver.switch_to.frame(frame)
+        except Exception:
+            continue
+        texts = _visible_button_texts(driver, limit=limit)
+        if texts:
+            lines.append(f"iframe#{index}: " + ", ".join(texts))
+    _to_top(driver)
+    return "\n  ".join(lines) if lines else "(없음)"
+
+
 def _nav_help_text(driver, step: str, exc: Exception) -> str:
     """진행이 막힌 단계와 그때 화면에 뭐가 있었는지 함께 보여준다."""
     from selenium.webdriver.common.by import By
 
+    _to_top(driver)  # 프레임 안에서 수집하면 빈 화면처럼 보인다
     try:
         url, title = driver.current_url, driver.title
         frames = len(driver.find_elements(By.TAG_NAME, "iframe"))
@@ -475,6 +527,8 @@ def _nav_help_text(driver, step: str, exc: Exception) -> str:
         frames = -1
 
     links = ", ".join(_visible_button_texts(driver, limit=25)) or "(없음)"
+    if links == "(없음)" and frames > 0:
+        links = _scan_frames_for_buttons(driver)
     return (
         f"락카 동기화가 '{step}' 단계에서 멈췄습니다.\n\n"
         f"현재 주소: {url}\n"
@@ -623,7 +677,9 @@ def fetch_locker_records(
 
         # 로그인 성공 판정: 메뉴에 '락커관리'가 나타날 때까지 기다린다.
         # text()로 비교하면 <a><span>락커관리</span></a> 구조를 놓치므로 . 으로 본다.
-        if not _wait_for_text(driver, "락커관리", timeout=40):
+        _to_top(driver)
+        menu_text = _wait_for_any_text(driver, _LOCKER_MENU_TEXTS, timeout=40)
+        if menu_text is None:
             raise RuntimeError(
                 _nav_help_text(driver, "로그인 후 메뉴 대기",
                                RuntimeError("로그인은 됐지만 '락커관리' 메뉴가 보이지 않습니다. "
@@ -634,8 +690,8 @@ def fetch_locker_records(
 
         # ── 2. 락커관리 진입 ──────────────────────────────────────────
         try:
-            if not _click_by_text(driver, "락커관리", _log):
-                raise RuntimeError("'락커관리' 메뉴를 찾지 못했습니다.")
+            if not _click_by_text(driver, menu_text, _log):
+                raise RuntimeError(f"'{menu_text}' 메뉴를 찾지 못했습니다.")
             time.sleep(3)
         except Exception as exc:
             raise RuntimeError(_nav_help_text(driver, "락커관리 메뉴 진입", exc)) from exc
