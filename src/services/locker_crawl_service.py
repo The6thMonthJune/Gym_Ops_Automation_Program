@@ -12,7 +12,10 @@ from typing import Callable
 from src.config.settings import _SETTINGS_DIR
 from src.services.broj_service import LockerRecord
 
-_EDGE_DRIVER_DOWNLOAD = "https://developer.microsoft.com/microsoft-edge/tools/webdriver/"
+_EDGE_DRIVER_PAGE = "https://developer.microsoft.com/ko-kr/microsoft-edge/tools/webdriver/"
+# Selenium Manager가 쓰는 msedgedriver.azureedge.net 은 폐기돼 더 이상 응답하지 않는다.
+# 공식 배포 서버에서 직접 받는다.
+_EDGEDRIVER_BASE = "https://msedgedriver.microsoft.com"
 
 _BROJ_BASE = "https://crm.broj.co.kr"
 
@@ -94,6 +97,68 @@ def _edge_driver_candidates() -> list[Path]:
     return [p for p in paths if p.exists()]
 
 
+def _driver_platform() -> str:
+    """내려받을 드라이버 아키텍처. 대부분 win64다."""
+    import platform
+
+    machine = (os.environ.get("PROCESSOR_ARCHITECTURE") or platform.machine() or "").upper()
+    return "arm64" if "ARM" in machine else "win64"
+
+
+def _edge_driver_url(version: str) -> str:
+    return f"{_EDGEDRIVER_BASE}/{version}/edgedriver_{_driver_platform()}.zip"
+
+
+def _latest_driver_version(major: int, timeout: int = 15) -> str:
+    """설치된 엣지 메이저에 맞는 드라이버 버전 문자열. 응답은 UTF-16으로 온다."""
+    import requests
+
+    response = requests.get(f"{_EDGEDRIVER_BASE}/LATEST_RELEASE_{major}", timeout=timeout)
+    response.raise_for_status()
+    try:
+        version = response.content.decode("utf-16").strip()
+    except UnicodeDecodeError:
+        version = response.text.strip()
+    if not re.fullmatch(r"\d+(\.\d+)+", version):
+        raise RuntimeError(f"드라이버 버전 응답을 해석하지 못했습니다: {version[:40]!r}")
+    return version
+
+
+def _download_edge_driver(major: int, log: Callable[[str], None]) -> Path:
+    """엣지 메이저에 맞는 msedgedriver를 내려받아 설정 폴더에 둔다.
+
+    한 번 받으면 버전별 폴더에 남겨 다음 실행 때 그대로 쓴다.
+    """
+    import io
+    import zipfile
+
+    import requests
+
+    version = _latest_driver_version(major)
+    target_dir = _SETTINGS_DIR / "webdriver" / version
+    target = target_dir / "msedgedriver.exe"
+    if target.exists():
+        log(f"받아둔 드라이버 사용 ({version})")
+        return target
+
+    url = _edge_driver_url(version)
+    log(f"드라이버 내려받는 중... ({version})")
+    response = requests.get(url, timeout=120)
+    response.raise_for_status()
+
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        name = next(
+            (n for n in archive.namelist() if n.endswith("msedgedriver.exe")), None
+        )
+        if name is None:
+            raise RuntimeError("내려받은 압축 파일에 msedgedriver.exe가 없습니다.")
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(archive.read(name))
+
+    log(f"드라이버 준비 완료 ({version})")
+    return target
+
+
 def _driver_cache_dir() -> Path:
     """Selenium Manager가 받은 드라이버를 보관할 폴더. 다음 실행 때 재사용된다."""
     cache = _SETTINGS_DIR / "webdriver"
@@ -119,17 +184,35 @@ def _ensure_selenium_manager() -> None:
 
 def _driver_help_text(edge_major: int | None, exc: Exception) -> str:
     edge_label = str(edge_major) if edge_major else "확인 불가"
-    return (
-        "락카 동기화에 쓸 엣지 드라이버를 준비하지 못했습니다.\n\n"
-        f"설치된 엣지 버전: {edge_label}\n"
-        "인터넷이 막혀 있거나 백신이 드라이버 다운로드를 차단했을 수 있습니다.\n\n"
-        "직접 해결하려면:\n"
-        f"1. {_EDGE_DRIVER_DOWNLOAD} 에서\n"
-        f"   설치된 엣지와 같은 버전({edge_label})의 Edge WebDriver (x64)를 받습니다.\n"
-        "2. 압축을 풀어 나온 msedgedriver.exe 를\n"
-        f"   {_SETTINGS_DIR} 폴더에 넣고 프로그램을 다시 실행합니다.\n\n"
-        f"원본 오류: {exc}"
-    )
+    try:
+        direct = _edge_driver_url(_latest_driver_version(edge_major)) if edge_major else ""
+    except Exception:
+        direct = ""
+
+    lines = [
+        "락카 동기화에 쓸 엣지 드라이버를 준비하지 못했습니다.",
+        "",
+        f"설치된 엣지 버전: {edge_label}",
+        "인터넷이 막혀 있거나 백신이 드라이버 다운로드를 차단했을 수 있습니다.",
+        "",
+        "직접 해결하려면:",
+    ]
+    if direct:
+        lines += [
+            f"1. 아래 주소에서 압축 파일을 받습니다.\n   {direct}",
+        ]
+    else:
+        lines += [
+            f"1. {_EDGE_DRIVER_PAGE} 에서\n"
+            f"   설치된 엣지와 같은 버전({edge_label})의 Edge WebDriver (x64)를 받습니다.",
+        ]
+    lines += [
+        "2. 압축을 풀어 나온 msedgedriver.exe 를",
+        f"   {_SETTINGS_DIR} 폴더에 넣고 프로그램을 다시 실행합니다.",
+        "",
+        f"원본 오류: {exc}",
+    ]
+    return "\n".join(lines)
 
 
 def _make_edge_driver(opts, log: Callable[[str], None]):
@@ -151,8 +234,19 @@ def _make_edge_driver(opts, log: Callable[[str], None]):
         except Exception as exc:
             log(f"  드라이버 실행 실패: {exc}")
 
-    # 맞는 드라이버가 없으면 Selenium Manager가 엣지에 맞춰 내려받는다 (한 번 받으면 캐시됨)
-    log("엣지에 맞는 드라이버를 준비하는 중...")
+    # 맞는 드라이버가 없으면 공식 배포 서버에서 직접 받는다.
+    # Selenium Manager는 폐기된 CDN을 보고 있어 더 이상 드라이버를 구하지 못한다.
+    if edge_major is not None:
+        try:
+            downloaded = _download_edge_driver(edge_major, log)
+            return webdriver.Edge(
+                service=EdgeService(executable_path=str(downloaded)), options=opts
+            )
+        except Exception as exc:
+            log(f"드라이버 직접 받기 실패: {exc}")
+
+    # 마지막 수단
+    log("Selenium Manager로 드라이버 준비 시도...")
     _ensure_selenium_manager()
     try:
         os.environ.setdefault("SE_CACHE_PATH", str(_driver_cache_dir()))

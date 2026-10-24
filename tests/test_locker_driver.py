@@ -21,11 +21,25 @@ class TestMajor:
 
 @pytest.fixture
 def edge_env(tmp_path, monkeypatch):
-    """번들 드라이버 1개와, 호출 흔적을 남기는 가짜 webdriver.Edge를 깔아준다."""
+    """번들 드라이버 1개와, 호출 흔적을 남기는 가짜 webdriver.Edge를 깔아준다.
+
+    직접 다운로드는 네트워크를 타므로 막아둔다 — 그 경로는 따로 테스트한다.
+    """
     bundled = tmp_path / "msedgedriver.exe"
     bundled.write_bytes(b"stub")
     monkeypatch.setattr(svc, "_edge_driver_candidates", lambda: [bundled])
     monkeypatch.setattr(svc, "_driver_cache_dir", lambda: tmp_path / "cache")
+
+    downloaded = tmp_path / "downloaded" / "msedgedriver.exe"
+    downloaded.parent.mkdir()
+    downloaded.write_bytes(b"stub")
+    self_download = {"called": False}
+
+    def _fake_download(major, log):
+        self_download["called"] = True
+        return downloaded
+
+    monkeypatch.setattr(svc, "_download_edge_driver", _fake_download)
 
     calls = []
 
@@ -34,37 +48,57 @@ def edge_env(tmp_path, monkeypatch):
         return "driver"
 
     monkeypatch.setattr(webdriver, "Edge", _fake_edge)
-    return bundled, calls
+    return bundled, calls, downloaded
 
 
 class TestMakeEdgeDriver:
     def test_uses_bundled_driver_when_version_matches(self, edge_env, monkeypatch):
-        bundled, calls = edge_env
+        bundled, calls, _ = edge_env
         monkeypatch.setattr(svc, "_installed_edge_major", lambda: 142)
         monkeypatch.setattr(svc, "_exe_version", lambda p: "Microsoft Edge WebDriver 142.0.1.2")
 
         assert svc._make_edge_driver(object(), lambda m: None) == "driver"
         assert calls == [str(bundled)]
 
-    def test_falls_back_when_bundled_driver_too_old(self, edge_env, monkeypatch):
-        _, calls = edge_env
-        monkeypatch.setattr(svc, "_installed_edge_major", lambda: 142)
+    def test_downloads_matching_driver_when_bundled_too_old(self, edge_env, monkeypatch):
+        _, calls, downloaded = edge_env
+        monkeypatch.setattr(svc, "_installed_edge_major", lambda: 155)
         monkeypatch.setattr(svc, "_exe_version", lambda p: "Microsoft Edge WebDriver 138.0.1.2")
 
         assert svc._make_edge_driver(object(), lambda m: None) == "driver"
-        assert calls == ["selenium-manager"]  # 번들을 건너뛰고 자동 다운로드로 감
+        assert calls == [str(downloaded)]   # 번들을 건너뛰고 직접 받은 드라이버를 쓴다
 
-    def test_falls_back_when_bundled_driver_too_new(self, edge_env, monkeypatch):
-        _, calls = edge_env
+    def test_downloads_matching_driver_when_bundled_too_new(self, edge_env, monkeypatch):
+        _, calls, downloaded = edge_env
         monkeypatch.setattr(svc, "_installed_edge_major", lambda: 138)
         monkeypatch.setattr(svc, "_exe_version", lambda p: "Microsoft Edge WebDriver 142.0.1.2")
+
+        svc._make_edge_driver(object(), lambda m: None)
+        assert calls == [str(downloaded)]
+
+    def test_selenium_manager_is_last_resort(self, edge_env, monkeypatch):
+        """직접 받기까지 실패하면 그때 Selenium Manager를 시도한다."""
+        _, calls, _ = edge_env
+        monkeypatch.setattr(svc, "_installed_edge_major", lambda: 155)
+        monkeypatch.setattr(svc, "_exe_version", lambda p: "138.0.1.2")
+        monkeypatch.setattr(
+            svc, "_download_edge_driver",
+            lambda major, log: (_ for _ in ()).throw(OSError("네트워크 차단")),
+        )
 
         svc._make_edge_driver(object(), lambda m: None)
         assert calls == ["selenium-manager"]
 
     def test_error_message_guides_manual_install(self, edge_env, monkeypatch):
-        monkeypatch.setattr(svc, "_installed_edge_major", lambda: 142)
+        monkeypatch.setattr(svc, "_installed_edge_major", lambda: 155)
         monkeypatch.setattr(svc, "_exe_version", lambda p: "138.0.1.2")
+        monkeypatch.setattr(
+            svc, "_download_edge_driver",
+            lambda major, log: (_ for _ in ()).throw(OSError("네트워크 차단")),
+        )
+        monkeypatch.setattr(
+            svc, "_latest_driver_version", lambda major, timeout=15: "155.0.4283.62",
+        )
 
         def _boom(options=None, service=None):
             raise RuntimeError("session not created")
@@ -75,12 +109,13 @@ class TestMakeEdgeDriver:
             svc._make_edge_driver(object(), lambda m: None)
 
         message = str(err.value)
-        assert "설치된 엣지 버전: 142" in message
+        assert "설치된 엣지 버전: 155" in message
         assert "msedgedriver.exe" in message
-        assert svc._EDGE_DRIVER_DOWNLOAD in message
+        # 랜딩 페이지 대신 정확한 파일 주소를 알려준다
+        assert "msedgedriver.microsoft.com/155.0.4283.62" in message
 
     def test_unknown_edge_version_still_tries_bundled(self, edge_env, monkeypatch):
-        bundled, calls = edge_env
+        bundled, calls, _ = edge_env
         monkeypatch.setattr(svc, "_installed_edge_major", lambda: None)
         monkeypatch.setattr(svc, "_exe_version", lambda p: "")
 
@@ -350,3 +385,87 @@ class TestMenuSpelling:
 
     def test_returns_none_when_no_spelling_matches(self):
         assert svc._wait_for_any_text(_FakeDriver({}), svc._LOCKER_MENU_TEXTS, timeout=0) is None
+
+
+class TestEdgeDriverDownload:
+    """Selenium Manager가 쓰던 msedgedriver.azureedge.net 이 폐기돼 직접 받아야 한다."""
+
+    def test_picks_win64_on_windows(self, monkeypatch):
+        monkeypatch.setenv("PROCESSOR_ARCHITECTURE", "AMD64")
+        assert svc._driver_platform() == "win64"
+
+    def test_picks_arm64_when_reported(self, monkeypatch):
+        monkeypatch.setenv("PROCESSOR_ARCHITECTURE", "ARM64")
+        assert svc._driver_platform() == "arm64"
+
+    def test_url_uses_official_host(self, monkeypatch):
+        monkeypatch.setenv("PROCESSOR_ARCHITECTURE", "AMD64")
+        url = svc._edge_driver_url("155.0.4283.62")
+        assert url == (
+            "https://msedgedriver.microsoft.com/155.0.4283.62/edgedriver_win64.zip"
+        )
+        assert "azureedge" not in url
+
+    def test_version_response_is_utf16(self, monkeypatch):
+        import requests
+
+        class _Response:
+            content = "155.0.4283.62".encode("utf-16")
+
+            def raise_for_status(self):
+                return None
+
+        monkeypatch.setattr(requests, "get", lambda *a, **k: _Response())
+        assert svc._latest_driver_version(155) == "155.0.4283.62"
+
+    def test_rejects_garbage_version(self, monkeypatch):
+        import requests
+
+        class _Response:
+            content = b"<html>404</html>"
+
+            def raise_for_status(self):
+                return None
+
+        monkeypatch.setattr(requests, "get", lambda *a, **k: _Response())
+        with pytest.raises(RuntimeError, match="해석하지 못했습니다"):
+            svc._latest_driver_version(155)
+
+    def test_extracts_exe_and_caches_by_version(self, tmp_path, monkeypatch):
+        import io
+        import zipfile
+
+        import requests
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("Driver_Notes/LICENSE", "x")
+            archive.writestr("msedgedriver.exe", b"DRIVER")
+
+        calls = []
+
+        class _Response:
+            def __init__(self, payload):
+                self.content = payload
+
+            def raise_for_status(self):
+                return None
+
+        def _get(url, **kwargs):
+            calls.append(url)
+            if "LATEST_RELEASE" in url:
+                return _Response("155.0.4283.62".encode("utf-16"))
+            return _Response(buffer.getvalue())
+
+        monkeypatch.setattr(requests, "get", _get)
+        monkeypatch.setattr(svc, "_SETTINGS_DIR", tmp_path)
+
+        path = svc._download_edge_driver(155, lambda m: None)
+
+        assert path.read_bytes() == b"DRIVER"
+        assert path.parent.name == "155.0.4283.62"   # 버전별로 보관
+
+        calls.clear()
+        again = svc._download_edge_driver(155, lambda m: None)
+        assert again == path
+        assert not any("edgedriver_" in c for c in calls)  # 두 번째는 다시 받지 않는다
