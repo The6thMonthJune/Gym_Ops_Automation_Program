@@ -228,3 +228,52 @@ class TestLoginHelpText:
         assert "이용가이드" in message        # value 속성만 있는 버튼도 수집
         assert "id=userId" in message         # 입력란 정보로 다음 수정 지점을 알 수 있다
         assert "timeout" in message
+
+
+class TestNavigationByText:
+    """메뉴·버튼도 중첩 텍스트를 잡아야 한다 — 로그인 버튼과 같은 원인으로 깨졌다."""
+
+    def test_clicks_anchor_wrapping_span(self):
+        link = _FakeElement("락커관리")
+        driver = _FakeDriver({"//a[contains(., '락커관리')]": [link]})
+
+        assert svc._click_by_text(driver, "락커관리", lambda m: None) is True
+        assert link.clicked
+
+    def test_tries_other_element_types(self):
+        item = _FakeElement("락커관리")
+        driver = _FakeDriver({
+            "//a[contains(., '락커관리')]": [],
+            "//button[contains(., '락커관리')]": [],
+            "//*[@role='button' or @role='menuitem'][contains(., '락커관리')]": [item],
+        })
+
+        assert svc._click_by_text(driver, "락커관리", lambda m: None) is True
+        assert item.clicked
+
+    def test_returns_false_when_nothing_matches(self):
+        assert svc._click_by_text(_FakeDriver({}), "락커관리", lambda m: None) is False
+
+    def test_skips_element_that_refuses_click(self):
+        hidden = _FakeElement("락커관리", clickable=False)
+        usable = _FakeElement("락커관리")
+        driver = _FakeDriver({"//a[contains(., '락커관리')]": [hidden, usable]})
+
+        assert svc._click_by_text(driver, "락커관리", lambda m: None) is True
+        assert usable.clicked
+
+
+class TestNavHelpText:
+    def test_names_the_step_and_dumps_menu(self):
+        driver = _FakeDriver({
+            "//button | //a | //input[@type='submit']": [
+                _FakeElement("회원관리"), _FakeElement("매출관리"),
+            ],
+            "iframe": [_FakeElement(), _FakeElement()],
+        }, url="https://crm.broj.co.kr/main", title="BROJ CRM")
+
+        message = svc._nav_help_text(driver, "락커관리 메뉴 진입", RuntimeError("없음"))
+
+        assert "락커관리 메뉴 진입" in message
+        assert "회원관리, 매출관리" in message
+        assert "iframe 개수: 2" in message

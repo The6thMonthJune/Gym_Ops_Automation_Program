@@ -425,6 +425,96 @@ def _login_help_text(driver, exc: Exception) -> str:
     )
 
 
+def _wait_for_text(driver, text: str, timeout: int = 30) -> bool:
+    """문구가 화면에 나타날 때까지 기다린다. 중첩된 텍스트도 잡는다."""
+    from selenium.webdriver.common.by import By
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _visible(driver.find_elements(By.XPATH, f"//*[contains(., '{text}')]")):
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _click_by_text(driver, text: str, log: Callable[[str], None]) -> bool:
+    """문구가 들어간 클릭 가능한 요소를 찾아 누른다.
+
+    text()는 직계 텍스트 노드만 보므로 <a><span>락커관리</span></a> 같은 구조를
+    놓친다. . 으로 비교하고 요소 종류도 넓게 잡는다.
+    """
+    from selenium.webdriver.common.by import By
+
+    for xpath in (
+        f"//a[contains(., '{text}')]",
+        f"//button[contains(., '{text}')]",
+        f"//*[@role='button' or @role='menuitem'][contains(., '{text}')]",
+        f"//li[contains(., '{text}')]",
+        f"//span[contains(., '{text}')]",
+        f"//*[contains(., '{text}')][not(.//*[contains(., '{text}')])]",
+    ):
+        for element in _visible(driver.find_elements(By.XPATH, xpath)):
+            try:
+                element.click()
+            except Exception:
+                continue
+            log(f"'{text}' 클릭 ({xpath})")
+            return True
+    return False
+
+
+def _nav_help_text(driver, step: str, exc: Exception) -> str:
+    """진행이 막힌 단계와 그때 화면에 뭐가 있었는지 함께 보여준다."""
+    from selenium.webdriver.common.by import By
+
+    try:
+        url, title = driver.current_url, driver.title
+        frames = len(driver.find_elements(By.TAG_NAME, "iframe"))
+    except Exception:
+        url = title = "(확인 불가)"
+        frames = -1
+
+    links = ", ".join(_visible_button_texts(driver, limit=25)) or "(없음)"
+    return (
+        f"락카 동기화가 '{step}' 단계에서 멈췄습니다.\n\n"
+        f"현재 주소: {url}\n"
+        f"페이지 제목: {title}\n"
+        f"iframe 개수: {frames}\n"
+        f"화면의 메뉴·버튼: {links}\n\n"
+        "브로제이 화면 구성이 바뀐 것으로 보입니다.\n"
+        "위 내용을 그대로 제작자에게 전달해주세요.\n\n"
+        f"원본 오류: {exc}"
+    )
+
+
+def _switch_to_locker_frame(driver, log: Callable[[str], None]) -> bool:
+    """락카 버튼이 들어 있는 iframe으로 전환한다.
+
+    예전에는 iframe[0]으로 고정했는데, 프레임이 늘거나 순서가 바뀌면 깨진다.
+    번호를 세는 대신 락카 번호가 보이는 프레임을 직접 찾는다.
+    """
+    from selenium.webdriver.common.by import By
+
+    frames = driver.find_elements(By.TAG_NAME, "iframe")
+    for index, frame in enumerate(frames):
+        driver.switch_to.default_content()
+        try:
+            driver.switch_to.frame(frame)
+        except Exception:
+            continue
+        buttons = driver.find_elements(By.TAG_NAME, "button")
+        if any(_parse_button_text(b.text) for b in buttons[:80]):
+            log(f"락카 iframe 전환 (iframe #{index})")
+            return True
+
+    # 프레임 없이 본문에 바로 그려지는 경우
+    driver.switch_to.default_content()
+    if any(_parse_button_text(b.text) for b in driver.find_elements(By.TAG_NAME, "button")[:80]):
+        log("iframe 없이 본문에서 락카 버튼 발견")
+        return True
+    return False
+
+
 def _parse_button_text(text: str) -> tuple[int, str, date | None, bool] | None:
     """로컬뷰 버튼 텍스트 → (전역번호, 이름, 만료일, is_holding).
 
@@ -501,8 +591,6 @@ def fetch_locker_records(
     Raises:
         RuntimeError: 로그인 실패 또는 페이지 탐색 오류
     """
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.support.ui import WebDriverWait
 
     def _log(msg: str) -> None:
@@ -533,25 +621,32 @@ def fetch_locker_records(
             raise RuntimeError(_login_help_text(driver, exc)) from exc
         _log("로그인 시도 중...")
 
-        wait.until(EC.element_to_be_clickable(
-            (By.XPATH, "//a[contains(text(),'락커관리')]")
-        ))
+        # 로그인 성공 판정: 메뉴에 '락커관리'가 나타날 때까지 기다린다.
+        # text()로 비교하면 <a><span>락커관리</span></a> 구조를 놓치므로 . 으로 본다.
+        if not _wait_for_text(driver, "락커관리", timeout=40):
+            raise RuntimeError(
+                _nav_help_text(driver, "로그인 후 메뉴 대기",
+                               RuntimeError("로그인은 됐지만 '락커관리' 메뉴가 보이지 않습니다. "
+                                            "아이디·비밀번호가 틀렸거나 메뉴 구성이 바뀌었을 수 있습니다."))
+            )
         time.sleep(2)  # SPA 내부 초기화 대기
         _log("로그인 완료")
 
         # ── 2. 락커관리 진입 ──────────────────────────────────────────
-        driver.find_element(By.XPATH, "//a[contains(text(),'락커관리')]").click()
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
-        time.sleep(3)
+        try:
+            if not _click_by_text(driver, "락커관리", _log):
+                raise RuntimeError("'락커관리' 메뉴를 찾지 못했습니다.")
+            time.sleep(3)
+        except Exception as exc:
+            raise RuntimeError(_nav_help_text(driver, "락커관리 메뉴 진입", exc)) from exc
         _log("락커관리 페이지 이동 완료")
 
-        # ── 3. iframe[0] 전환 ──────────────────────────────────────────
-        iframes = driver.find_elements(By.TAG_NAME, "iframe")
-        if not iframes:
-            raise RuntimeError("락커관리 iframe을 찾을 수 없습니다.")
-        driver.switch_to.frame(iframes[0])
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "button")))
-        _log("iframe 전환 완료")
+        # ── 3. 락카 버튼이 있는 프레임으로 전환 ───────────────────────
+        if not _switch_to_locker_frame(driver, _log):
+            raise RuntimeError(
+                _nav_help_text(driver, "락카 목록 화면 찾기",
+                               RuntimeError("락카 번호가 보이는 영역을 찾지 못했습니다."))
+            )
 
         # ── 4. 3개 구역 순서대로 파싱 ───────────────────────────────
         for idx, (section_name, dropdown_keyword) in enumerate(_SECTIONS):
@@ -559,16 +654,18 @@ def fetch_locker_records(
 
             if dropdown_keyword:
                 # JS click 대신 native click — 보안 소프트웨어 간섭 최소화
-                more_btn = wait.until(EC.element_to_be_clickable(
-                    (By.XPATH, "//button[.//span[contains(text(),'더보기')]]")
-                ))
-                more_btn.click()
+                if not _click_by_text(driver, "더보기", _log):
+                    raise RuntimeError(
+                        _nav_help_text(driver, f"{section_name} — 더보기 버튼",
+                                       RuntimeError("'더보기' 버튼을 찾지 못했습니다."))
+                    )
                 time.sleep(2)
 
-                section_item = wait.until(EC.element_to_be_clickable(
-                    (By.XPATH, f"//*[contains(text(),'{dropdown_keyword}') and not(contains(@class,'badge'))]")
-                ))
-                section_item.click()
+                if not _click_by_text(driver, dropdown_keyword, _log):
+                    raise RuntimeError(
+                        _nav_help_text(driver, f"{section_name} 선택",
+                                       RuntimeError(f"'{dropdown_keyword}' 항목을 찾지 못했습니다."))
+                    )
                 time.sleep(4)
 
             records = _collect_section(driver, section_name)
