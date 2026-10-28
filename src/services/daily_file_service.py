@@ -7,6 +7,12 @@ from pathlib import Path
 import openpyxl
 
 from src.core.file_naming import build_date_path, build_next_date_path, resolve_file_date
+from src.core.sheet_layout import (
+    CURRENT_LAYOUT,
+    LEGACY_LAYOUT,
+    offsets,
+    section_width,
+)
 from src.config.constants import DEFAULT_SHEET_NAME
 from src.config.settings import get_expense_daily_sheet
 
@@ -155,25 +161,57 @@ def _clear_daily_entries(file_path: Path) -> None:
 
 
 def _clear_sales_sheet(ws) -> None:
-    """데일리매출 시트 초기화 (12행~, 센터 B-M · 레슨 P-AA).
-    H·M열의 VAT/자동기타 수식은 보존한다."""
-    CENTER_COLS = range(2, 14)   # B–M
-    LESSON_COLS = range(16, 28)  # P–AA (레슨 섹션)
+    """데일리매출 시트 초기화 (12행~).
+
+    양식이 바뀌어도 지우다 마는 일이 없도록 구·신 양식 범위를 모두 포괄한다.
+    (센터 B–N, 레슨 P–AB) 여분 열을 더 지우는 건 비어 있으니 해가 없지만,
+    덜 지우면 새 파일에 어제 값이 남는다.
+    H·M열의 VAT/자동기타 수식은 _clear_value가 보존한다.
+    """
+    center_cols, lesson_cols = _clear_ranges()
+    # 회원명 열은 양식에 따라 다르다 — 어느 쪽이든 값이 있으면 그 행을 비운다
+    center_name_cols = _name_columns("센터")
+    lesson_name_cols = _name_columns("레슨")
+
+    def _has_entry(row_num: int, columns: set[int]) -> bool:
+        for col in columns:
+            value = ws.cell(row_num, col).value
+            if value is not None and not _is_formula(value):
+                return True
+        return False
 
     for row_num in range(12, min(ws.max_row + 1, 400)):
-        center_name = ws.cell(row_num, 4).value   # D: 회원명 (센터)
-        lesson_name = ws.cell(row_num, 18).value  # R: 회원명 (레슨, 16+2)
-
-        has_center = center_name is not None and not _is_formula(center_name)
-        has_lesson = lesson_name is not None and not _is_formula(lesson_name)
+        has_center = _has_entry(row_num, center_name_cols)
+        has_lesson = _has_entry(row_num, lesson_name_cols)
 
         if not has_center and not has_lesson:
             continue
 
-        for col in CENTER_COLS:
+        for col in center_cols:
             _clear_value(ws.cell(row_num, col))
-        for col in LESSON_COLS:
+        for col in lesson_cols:
             _clear_value(ws.cell(row_num, col))
+
+
+def _clear_ranges() -> tuple[range, range]:
+    """구·신 양식을 합친 센터·레슨 열 범위."""
+    def _span(section: str) -> range:
+        starts, ends = [], []
+        for layout in (LEGACY_LAYOUT, CURRENT_LAYOUT):
+            start = layout.section_start[section]
+            starts.append(start)
+            ends.append(start + section_width(layout, section))
+        return range(min(starts), max(ends))
+
+    return _span("센터"), _span("레슨")
+
+
+def _name_columns(section: str) -> set[int]:
+    """양식별 회원명 열 번호."""
+    return {
+        layout.section_start[section] + offsets(layout, section)["name"]
+        for layout in (LEGACY_LAYOUT, CURRENT_LAYOUT)
+    }
 
 
 def _clear_expense_sheet(ws) -> None:

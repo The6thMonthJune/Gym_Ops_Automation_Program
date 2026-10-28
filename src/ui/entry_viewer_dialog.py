@@ -37,7 +37,7 @@ _ROW_HEIGHT = 36
 _HEADER_HEIGHT = 36
 _VISIBLE_ROWS = 5
 
-_SALES_HEADERS = ["날짜", "회원명", "종목", "회원권", "금액", "결제방법", "구분", "FC"]
+_SALES_HEADERS = ["날짜", "회원명", "종목", "신/재", "회원권", "금액", "결제방법", "구분", "FC"]
 _EXPENSE_HEADERS = ["날짜", "구분", "지출내용", "금액", "결제방법", "담당자", "거래처"]
 
 
@@ -256,7 +256,7 @@ class EntryViewerDialog(QDialog):
         self.table.setColumnCount(len(_SALES_HEADERS))
         self.table.setHorizontalHeaderLabels(_SALES_HEADERS)
         header = self.table.horizontalHeader()
-        col_widths = [44, 80, 60, 140, 90, 80, 52, 64]
+        col_widths = [44, 80, 60, 48, 140, 90, 80, 52, 64]
         for i, w in enumerate(col_widths):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
             self.table.setColumnWidth(i, w)
@@ -282,6 +282,7 @@ class EntryViewerDialog(QDialog):
                 str(entry.day),
                 entry.name,
                 entry.category,
+                entry.membership_type,
                 entry.membership,
                 f"{entry.amount:,}원",
                 entry.payment_method,

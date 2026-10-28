@@ -77,3 +77,22 @@ def col_letter(n: int) -> str:
         n, remainder = divmod(n - 1, 26)
         result = chr(65 + remainder) + result
     return result
+
+
+# 매출 요약(현금/카드/계좌/총합) 셀이 놓인 행
+SUMMARY_ROWS = {"cash": 5, "card": 6, "transfer": 7, "total": 8}
+
+
+def summary_column(layout: SheetLayout) -> int:
+    """매출 요약 셀이 있는 열.
+
+    센터 섹션 오른쪽 끝에 붙어 있어 섹션 폭과 함께 움직인다.
+    신/재 칸이 생기면서 M열에서 N열로 밀렸다.
+    """
+    return layout.section_start["센터"] + offsets(layout, "센터")["note"]
+
+
+def summary_cells(layout: SheetLayout) -> dict[str, str]:
+    """{'cash': 'N5', ...} 형태로 요약 셀 주소를 돌려준다."""
+    letter = col_letter(summary_column(layout))
+    return {key: f"{letter}{row}" for key, row in SUMMARY_ROWS.items()}

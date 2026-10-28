@@ -199,3 +199,90 @@ class TestReaderMatchesWriterLayout:
 
         assert len(rows) == 2
         assert next(r for r in rows if r.section == "센터").amount == 0
+
+
+class TestSalesSummaryCells:
+    """메인 화면 새로고침이 읽는 현금/카드/계좌/총합 — 신/재 칸만큼 M → N으로 밀렸다."""
+
+    def _book(self, tmp_path, column, name="데일리 10.28.xlsx"):
+        import openpyxl
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "데일리매출"
+        ws[f"{column}5"] = 50000
+        ws[f"{column}6"] = 300000
+        ws[f"{column}7"] = 120000
+        ws[f"{column}8"] = 470000
+        path = tmp_path / name
+        wb.save(str(path))
+        return path
+
+    def test_reads_new_layout_at_n_column(self, tmp_path):
+        from src.services.sales_report_service import read_sales_values
+
+        values = read_sales_values(self._book(tmp_path, "N"))
+
+        assert values == {"cash": 50000, "card": 300000, "transfer": 120000, "total": 470000}
+
+    def test_still_reads_old_files_at_m_column(self, tmp_path):
+        """예전에 만든 데일리 파일도 그대로 열려야 한다."""
+        from src.services.sales_report_service import read_sales_values
+
+        values = read_sales_values(self._book(tmp_path, "M", "데일리 9.1.xlsx"))
+
+        assert values["total"] == 470000
+
+    def test_empty_sheet_reports_zero_not_crash(self, tmp_path):
+        import openpyxl
+
+        from src.services.sales_report_service import read_sales_values
+
+        wb = openpyxl.Workbook()
+        wb.active.title = "데일리매출"
+        path = tmp_path / "데일리 10.28.xlsx"
+        wb.save(str(path))
+
+        assert read_sales_values(path) == {"cash": 0, "card": 0, "transfer": 0, "total": 0}
+
+    def test_summary_column_follows_layout(self):
+        from src.core.sheet_layout import CURRENT_LAYOUT, LEGACY_LAYOUT, summary_cells
+
+        assert summary_cells(CURRENT_LAYOUT)["cash"] == "N5"
+        assert summary_cells(LEGACY_LAYOUT)["cash"] == "M5"
+
+
+class TestNextDayFileClearing:
+    """다음날 파일을 만들 때 덜 지우면 어제 매출이 남는다."""
+
+    def test_clears_both_sections_in_new_layout(self, tmp_path, monkeypatch):
+        import openpyxl
+
+        from src.services.daily_file_service import create_next_daily_file
+
+        monkeypatch.setattr(
+            "src.services.daily_file_service.get_expense_daily_sheet", lambda: "데일리지출"
+        )
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "데일리매출"
+        for cell, value in [
+            ("D12", "홍길동"), ("E12", "헬스"), ("F12", "신규"),
+            ("G12", "3개월"), ("H12", 300000), ("N12", "비고"),
+        ]:
+            ws[cell] = value
+        for cell, value in [
+            ("S12", "김철수"), ("T12", "PT"), ("U12", "10회"),
+            ("V12", 900000), ("AB12", "레슨비고"),
+        ]:
+            ws[cell] = value
+        wb.create_sheet("데일리지출")
+        source = tmp_path / "리와인드 데일리 10.28.xlsx"
+        wb.save(str(source))
+
+        created = create_next_daily_file(source)
+
+        ws2 = openpyxl.load_workbook(str(created))["데일리매출"]
+        for cell in ("D12", "E12", "F12", "G12", "H12", "N12",
+                     "S12", "T12", "U12", "V12", "AB12"):
+            assert ws2[cell].value is None, f"{cell}이 지워지지 않았습니다"

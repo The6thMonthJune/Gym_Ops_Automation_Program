@@ -5,6 +5,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from src.core.sheet_layout import CURRENT_LAYOUT, LEGACY_LAYOUT, summary_cells
+
 WEEKDAY_KR = ["월", "화", "수", "목", "금", "토", "일"]
 
 
@@ -20,26 +22,49 @@ def build_report_header(target_date: datetime) -> str:
 def read_sales_values(
     excel_path: str | Path,
     sheet_name: str = "데일리매출",
-    cash_cell: str = "M5",
-    card_cell: str = "M6",
-    transfer_cell: str = "M7",
-    total_cell: str = "M8",
+    cash_cell: str | None = None,
+    card_cell: str | None = None,
+    transfer_cell: str | None = None,
+    total_cell: str | None = None,
 ) -> dict[str, int]:
+    """데일리 파일의 매출 요약(현금·카드·계좌·총합)을 읽는다.
+
+    요약 셀은 센터 섹션 오른쪽 끝에 붙어 있어 양식이 바뀌면 함께 밀린다.
+    신/재 칸이 생기면서 M열 → N열로 옮겨갔다. 현재 양식을 먼저 보고,
+    네 칸이 모두 비어 있으면 구양식 위치로 한 번 더 본다. 예전에 만든
+    파일도 그대로 열 수 있어야 하기 때문이다.
+    """
     workbook = load_workbook(excel_path, data_only=True)
 
     if sheet_name not in workbook.sheetnames:
         raise ValueError(f"시트를 찾을 수 없습니다: {sheet_name}")
 
     sheet = workbook[sheet_name]
-
-    values = {
-        "cash": sheet[cash_cell].value or 0,
-        "card": sheet[card_cell].value or 0,
-        "transfer": sheet[transfer_cell].value or 0,
-        "total": sheet[total_cell].value or 0,
+    override = {
+        "cash": cash_cell, "card": card_cell,
+        "transfer": transfer_cell, "total": total_cell,
     }
 
-    return {key: int(value) for key, value in values.items()}
+    for layout in (CURRENT_LAYOUT, LEGACY_LAYOUT):
+        cells = summary_cells(layout)
+        values = {
+            key: sheet[override[key] or address].value
+            for key, address in cells.items()
+        }
+        if any(value is not None for value in values.values()):
+            return {key: _as_int(value) for key, value in values.items()}
+
+    return {key: 0 for key in cells}
+
+
+def _as_int(value) -> int:
+    """숫자가 아니면 0. 요약 칸에 글자가 있어도 화면이 죽지 않게 한다."""
+    if value is None:
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def build_sales_report_text(
@@ -115,12 +140,20 @@ def read_range_totals(
 
 
 
+def _legacy_off(section: str) -> dict[str, int]:
+    from src.core.sheet_layout import offsets
+    return offsets(LEGACY_LAYOUT, section)
+
+
 # 총매출 파일 월 시트에서 센터/피티 금액 컬럼 (1-based)
 # 센터: 시작 B(2) → 이름 D(4), 금액 G(7)
 # 레슨: 시작 P(16) → 이름 R(18), 금액 U(21)
 _MONTHLY_SECTION_COLS = {
-    "center": (4, 7),
-    "pt": (18, 21),
+    key: (
+        LEGACY_LAYOUT.section_start[section] + _legacy_off(section)["name"],
+        LEGACY_LAYOUT.section_start[section] + _legacy_off(section)["amount"],
+    )
+    for key, section in (("center", "센터"), ("pt", "레슨"))
 }
 _MONTHLY_DATA_START_ROW = 12
 
