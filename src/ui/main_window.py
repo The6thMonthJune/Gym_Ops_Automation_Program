@@ -264,7 +264,8 @@ class MainWindow(QMainWindow):
         timer.timeout.connect(self._check_date_change)
         timer.start(60_000)
         QTimer.singleShot(2000, self._check_monthly_sheet)
-        QTimer.singleShot(2500, self._check_yearly_file)
+        QTimer.singleShot(2500, self._check_monthly_file_sheets)
+        QTimer.singleShot(3000, self._check_yearly_file)
         QTimer.singleShot(1500, self._do_daily_consultation_rollover)
         QTimer.singleShot(3000, self._refresh_visitor_panel)
 
@@ -695,6 +696,7 @@ class MainWindow(QMainWindow):
         if today.month != self._last_checked_month:
             self._last_checked_month = today.month
             self._check_monthly_sheet()
+            self._check_monthly_file_sheets()
         if today.year != self._last_checked_year:
             self._last_checked_year = today.year
             self._check_yearly_file()
@@ -782,8 +784,6 @@ class MainWindow(QMainWindow):
                     self._create_monthly_sheet(today.year, today.month, "매출" in missing, "지출" in missing)
         except Exception:
             pass
-
-        self._check_monthly_file_sheets()
 
     def _check_monthly_file_sheets(self) -> None:
         """월별 총매 파일에 이번 달 매출·지출 시트를 미리 만들어 둔다.
