@@ -786,28 +786,34 @@ class MainWindow(QMainWindow):
             pass
 
     def _check_monthly_file_sheets(self) -> None:
-        """월별 총매 파일에 이번 달 매출·지출 시트를 미리 만들어 둔다.
+        """이번 달 월별 총매 파일을 준비한다.
 
-        결제 입력 때도 없으면 만들지만, 미리 준비해두면 첫 결제가 느려지지 않는다.
+        월별 총매는 달마다 파일이 따로다. 전월 파일을 복사해 시트명을 새 달로
+        바꾸고 입력값을 비운다. 원본 파일은 건드리지 않는다.
         """
-        if not self._path_monthly or not Path(self._path_monthly).exists():
+        if not self._path_monthly:
             return
         today = date.today()
         try:
             from src.config.settings import get_password
-            from src.services.entry_service import ensure_monthly_file_sheets
+            from src.services.monthly_total_service import ensure_monthly_file
 
-            created = ensure_monthly_file_sheets(
+            resolved, created = ensure_monthly_file(
                 self._path_monthly, today.year, today.month, get_password()
             )
         except Exception as exc:
-            QMessageBox.warning(self, "월별 총매 시트 생성 실패", str(exc))
+            QMessageBox.warning(self, "월별 총매 파일 준비 실패", str(exc))
             return
+
+        if str(resolved) != self._path_monthly:
+            self._set_monthly_path(str(resolved))
 
         if created:
             QMessageBox.information(
-                self, "월별 총매 시트 생성",
-                f"{today.month}월 시트를 만들었습니다.\n" + "\n".join(created)
+                self, "월별 총매 파일 생성",
+                f"{today.month}월 월별 총매 파일을 만들었습니다.\n\n"
+                f"{resolved.name}\n\n"
+                "전월 파일을 복사해 내용만 비웠습니다. 전월 파일은 그대로 있습니다."
             )
 
     def _create_monthly_sheet(self, year: int, month: int, income: bool = True, expense: bool = True) -> None:

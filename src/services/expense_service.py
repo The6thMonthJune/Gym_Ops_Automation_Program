@@ -162,6 +162,12 @@ def write_expense_to_monthly_total(
     Returns: 기록된 행 번호
     """
     from src.services.entry_service import _month_sheet_in_book
+    from src.services.monthly_total_service import ensure_monthly_file
+
+    # 월별 총매는 달마다 파일이 따로다. 지출 날짜에 맞는 파일을 먼저 확보한다.
+    monthly_path, _ = ensure_monthly_file(
+        monthly_path, entry.entry_date.year, entry.entry_date.month, password
+    )
 
     book, was_open = _open_book_with_password(monthly_path, password)
     try:

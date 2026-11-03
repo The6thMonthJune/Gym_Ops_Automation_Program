@@ -570,9 +570,16 @@ def write_entry_to_monthly_total(
     Returns:
         (row_num, is_duplicate)
     """
-    book, was_open = _open_book(monthly_path, password=password)
+    from src.services.monthly_total_service import ensure_monthly_file
+
+    # 월별 총매는 달마다 파일이 따로다. 결제 날짜에 맞는 파일을 먼저 확보한다.
+    resolved, _ = ensure_monthly_file(
+        monthly_path, entry.entry_date.year, entry.entry_date.month, password
+    )
+
+    book, was_open = _open_book(resolved, password=password)
     try:
-        # 시트가 없으면 먼저 만든다. 달이 바뀌었다고 매출 입력이 막히면 안 된다.
+        # 파일 안에 해당 달 시트가 없으면 만든다 (직접 만든 파일 대비)
         sheet_name = _month_sheet_in_book(
             book, entry.entry_date.year, entry.entry_date.month, "매출"
         )
