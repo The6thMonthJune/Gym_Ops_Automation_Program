@@ -19,9 +19,13 @@ _FILE_MONTH_PATTERNS = (
     re.compile(r"(?P<year>\d{2,4})(?P<ysep>\s*[.\-_]\s*)(?P<month>\d{1,2})(?P<msep>\s*월)"),
     # 2026-10 / 2026_10 (뒤에 숫자가 더 붙지 않을 때)
     re.compile(r"(?P<year>\d{4})(?P<ysep>\s*[-_.]\s*)(?P<month>\d{1,2})(?P<msep>)(?!\d)"),
-    # 10월 — 연도 표기가 없는 경우
+    # 10월 — 월 바로 앞에 연도 표기가 없는 경우
     re.compile(r"(?<!\d)(?P<year>)(?P<ysep>)(?P<month>\d{1,2})(?P<msep>\s*월)"),
 )
+
+# '2026 중산2호점 10월' 처럼 연도가 월과 떨어져 있는 경우를 따로 찾는다.
+# '2호점' 같은 숫자에 걸리지 않도록 네 자리 20xx만 본다.
+_STANDALONE_YEAR = re.compile(r"(?<!\d)(20\d{2})(?!\d)")
 
 
 def _match_month(name: str):
@@ -70,6 +74,12 @@ def build_month_file_path(path: str | Path, year: int, month: int) -> Path:
 
     replacement = new_year + found.group("ysep") + new_month + found.group("msep")
     new_name = source.name[:found.start()] + replacement + source.name[found.end():]
+
+    if not year_text:
+        # 연도가 월과 떨어져 적혀 있으면('2026 중산2호점 10월') 그쪽도 맞춰준다.
+        # 그러지 않으면 1월에 연도가 작년으로 남는다.
+        new_name = _STANDALONE_YEAR.sub(str(year), new_name, count=1)
+
     return source.with_name(new_name)
 
 
