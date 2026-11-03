@@ -103,6 +103,12 @@ def find_monthly_file_sheet_name(
 _MONTH_SHEET_RE = re.compile(r"(?P<yy>\d{2})(?P<sep>[.년]\s*)(?P<month>\d{1,2})월")
 
 
+def sheet_month(name: str) -> int | None:
+    """시트명에서 월을 읽는다. 연·월 표기가 없으면 None."""
+    found = _MONTH_SHEET_RE.search(name)
+    return int(found.group("month")) if found else None
+
+
 def build_month_sheet_name(template: str, year: int, month: int) -> str:
     """기존 시트명의 표기를 그대로 따르면서 연·월만 바꾼다.
 

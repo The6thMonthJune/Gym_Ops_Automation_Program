@@ -109,9 +109,12 @@ def ensure_monthly_file(
             "이전 달 파일이 같은 폴더에 있어야 복사해서 만들 수 있습니다."
         )
 
+    source_info = file_month(source)
+    source_month = source_info[1] if source_info else None
+
     shutil.copy2(source, target)
     try:
-        _retitle_and_clear(target, year, month, password)
+        _retitle_and_clear(target, year, month, password, source_month)
     except Exception:
         target.unlink(missing_ok=True)  # 반쯤 만들어진 파일을 남기지 않는다
         raise
@@ -138,29 +141,61 @@ def _find_source_file(
     return None
 
 
+def _pick_template(sheets: list, source_month: int | None):
+    """같은 종류 시트가 여럿이면 복사 원본의 달에 해당하는 것을 고른다."""
+    from src.services.total_sales_service import sheet_month
+
+    if source_month is not None:
+        for sheet in sheets:
+            if sheet_month(sheet.name) == source_month:
+                return sheet
+    return sheets[0]
+
+
 def _retitle_and_clear(
-    path: Path, year: int, month: int, password: str | None
+    path: Path, year: int, month: int, password: str | None,
+    source_month: int | None = None,
 ) -> None:
-    """복사본의 매출·지출 시트명을 새 달로 바꾸고 입력값만 비운다."""
+    """복사본의 매출·지출 시트명을 새 달로 바꾸고 입력값만 비운다.
+
+    같은 종류 시트가 여럿이면 복사 원본의 달만 남기고 지운다. 이전 버전이
+    원본 파일에 다음 달 시트를 잘못 만들어 둔 경우, 그대로 두면 이름이
+    충돌해 새 달 파일을 만들 수 없다. 지우는 대상은 복사본뿐이다.
+    """
     from src.services.entry_service import _clear_keep_formulas, _open_book
-    from src.services.total_sales_service import build_month_sheet_name
+    from src.services.total_sales_service import build_month_sheet_name, sheet_month
 
     book, was_open = _open_book(path, password=password)
+    app = book.app
+    previous_alerts = app.display_alerts
+    app.display_alerts = False  # 시트 삭제 확인창이 뜨지 않게 한다
     try:
-        for sheet in list(book.sheets):
-            kind = _sheet_kind(sheet.name)
-            if kind is None:
-                continue  # 표지 같은 시트는 건드리지 않는다
-            try:
-                sheet.name = build_month_sheet_name(sheet.name, year, month)
-            except ValueError:
-                pass  # 시트명에 연·월이 없으면 이름은 그대로 두고 비우기만 한다
+        for kind in ("매출", "지출"):
+            sheets = [
+                sheet for sheet in book.sheets
+                if _sheet_kind(sheet.name) == kind and sheet_month(sheet.name) is not None
+            ]
+            if not sheets:
+                continue
+
+            keep = _pick_template(sheets, source_month)
+            for sheet in sheets:
+                if sheet is not keep:
+                    sheet.delete()
+
+            new_name = build_month_sheet_name(keep.name, year, month)
+            if keep.name != new_name:
+                keep.name = new_name
 
             if kind == "매출":
-                _clear_keep_formulas(sheet, 12, 500, 2, last_column(CURRENT_LAYOUT))
+                _clear_keep_formulas(keep, 12, 500, 2, last_column(CURRENT_LAYOUT))
             else:
-                _clear_keep_formulas(sheet, 6, 500, 1, 10, keep_cols={2})
+                _clear_keep_formulas(keep, 6, 500, 1, 10, keep_cols={2})
         book.save()
     finally:
+        try:
+            app.display_alerts = previous_alerts
+        except Exception:
+            pass
         if not was_open:
-            book.app.quit()
+            app.quit()

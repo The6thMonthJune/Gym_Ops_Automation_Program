@@ -50,7 +50,7 @@ def october(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(
         "src.services.monthly_total_service._retitle_and_clear",
-        lambda p, y, m, pw: calls.append((Path(p).name, y, m)),
+        lambda p, y, m, pw, sm=None: calls.append((Path(p).name, y, m)),
     )
     return path, calls
 
@@ -97,10 +97,84 @@ class TestEnsureMonthlyFile:
         path, _ = october
         monkeypatch.setattr(
             "src.services.monthly_total_service._retitle_and_clear",
-            lambda p, y, m, pw: (_ for _ in ()).throw(RuntimeError("엑셀 오류")),
+            lambda p, y, m, pw, sm=None: (_ for _ in ()).throw(RuntimeError("엑셀 오류")),
         )
 
         with pytest.raises(RuntimeError):
             ensure_monthly_file(path, 2026, 11)
 
         assert not path.with_name("26년 11월 총매.xlsx").exists()
+
+
+class _Sheet:
+    def __init__(self, name, book):
+        self.name = name
+        self._book = book
+        self.cleared = False
+
+    def range(self, start, end):
+        self.cleared = True
+        return type("R", (), {"formula": [[None]], "value": None})()
+
+    def delete(self):
+        self._book.sheets.remove(self)
+
+
+class _App:
+    display_alerts = True
+
+    def quit(self):
+        pass
+
+
+class _Book:
+    def __init__(self, names):
+        self.sheets = []
+        self.sheets.extend(_Sheet(n, self) for n in names)
+        self.app = _App()
+        self.saved = False
+
+    def save(self):
+        self.saved = True
+
+
+class TestRetitleHandlesLeftoverSheets:
+    """이전 버전이 원본에 다음 달 시트를 잘못 만들어 둬서 이름이 충돌했다."""
+
+    def _run(self, names, source_month, monkeypatch):
+        from src.services import monthly_total_service as svc
+
+        book = _Book(names)
+        monkeypatch.setattr(
+            "src.services.entry_service._open_book", lambda *a, **k: (book, False)
+        )
+        monkeypatch.setattr(
+            "src.services.entry_service._clear_keep_formulas",
+            lambda *a, **k: None,
+        )
+        svc._retitle_and_clear(Path("x.xlsx"), 2026, 11, None, source_month)
+        return book
+
+    def test_drops_leftover_target_month_sheet(self, monkeypatch):
+        book = self._run(
+            ["표지", "26.10월매출", "26.10월지출", "26.11월매출", "26.11월지출"],
+            source_month=10,
+            monkeypatch=monkeypatch,
+        )
+
+        assert [s.name for s in book.sheets] == ["표지", "26.11월매출", "26.11월지출"]
+        assert book.saved
+
+    def test_plain_rename_when_no_conflict(self, monkeypatch):
+        book = self._run(
+            ["표지", "26.10월매출", "26.10월지출"], source_month=10, monkeypatch=monkeypatch
+        )
+
+        assert [s.name for s in book.sheets] == ["표지", "26.11월매출", "26.11월지출"]
+
+    def test_leaves_sheets_without_month_alone(self, monkeypatch):
+        book = self._run(
+            ["매출요약", "26.10월매출"], source_month=10, monkeypatch=monkeypatch
+        )
+
+        assert "매출요약" in [s.name for s in book.sheets]   # 월 표기가 없으면 건드리지 않는다
