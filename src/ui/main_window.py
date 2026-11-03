@@ -783,6 +783,33 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+        self._check_monthly_file_sheets()
+
+    def _check_monthly_file_sheets(self) -> None:
+        """월별 총매 파일에 이번 달 매출·지출 시트를 미리 만들어 둔다.
+
+        결제 입력 때도 없으면 만들지만, 미리 준비해두면 첫 결제가 느려지지 않는다.
+        """
+        if not self._path_monthly or not Path(self._path_monthly).exists():
+            return
+        today = date.today()
+        try:
+            from src.config.settings import get_password
+            from src.services.entry_service import ensure_monthly_file_sheets
+
+            created = ensure_monthly_file_sheets(
+                self._path_monthly, today.year, today.month, get_password()
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "월별 총매 시트 생성 실패", str(exc))
+            return
+
+        if created:
+            QMessageBox.information(
+                self, "월별 총매 시트 생성",
+                f"{today.month}월 시트를 만들었습니다.\n" + "\n".join(created)
+            )
+
     def _create_monthly_sheet(self, year: int, month: int, income: bool = True, expense: bool = True) -> None:
         try:
             from src.services.entry_service import create_monthly_expense_sheet, create_monthly_sheet

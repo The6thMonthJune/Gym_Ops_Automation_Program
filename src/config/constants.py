@@ -3,7 +3,7 @@ DEFAULT_SHEET_NAME = "데일리매출"
 # 매출 요약 셀 위치는 양식에 따라 움직이므로 src/core/sheet_layout 에서 계산한다.
 # (신/재 칸이 생기며 M열 → N열) 여기에 다시 상수로 박아두지 말 것.
 
-APP_VERSION = "3.2.8"
+APP_VERSION = "3.2.9"
 APP_NAME = f"리와인드 휘트니스 전산 자동화 프로그램 v{APP_VERSION}"
 WINDOW_WIDTH = 500
 WINDOW_HEIGHT = 770

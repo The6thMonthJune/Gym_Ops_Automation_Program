@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 from pathlib import Path
 
 import openpyxl
@@ -96,6 +97,26 @@ def find_monthly_file_sheet_name(
         f"파일 내 시트 목록: {', '.join(sheet_names)}\n"
         f"시트 이름 형식 예시: '{two_digit_year}.{month}월{kind}'"
     )
+
+
+# '26.10월매출' / '26년 10월 지출' 처럼 연·월이 붙은 시트명
+_MONTH_SHEET_RE = re.compile(r"(?P<yy>\d{2})(?P<sep>[.년]\s*)(?P<month>\d{1,2})월")
+
+
+def build_month_sheet_name(template: str, year: int, month: int) -> str:
+    """기존 시트명의 표기를 그대로 따르면서 연·월만 바꾼다.
+
+    구분자('.' / '년')와 0 채움 여부를 템플릿에서 읽어 쓰므로,
+    파일마다 다른 표기를 멋대로 바꾸지 않는다.
+    """
+    found = _MONTH_SHEET_RE.search(template)
+    if not found:
+        raise ValueError(f"시트명에서 연·월을 찾을 수 없습니다: {template}")
+
+    padded = len(found.group("month")) == 2 and found.group("month").startswith("0")
+    month_text = f"{month:02d}" if padded else str(month)
+    replacement = f"{year % 100:02d}{found.group('sep')}{month_text}월"
+    return template[:found.start()] + replacement + template[found.end():]
 
 
 def open_workbook(file_path: str | Path, password: str | None = None):

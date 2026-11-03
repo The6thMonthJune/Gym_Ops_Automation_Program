@@ -8,12 +8,14 @@ import xlwings as xw
 
 from src.core.sheet_layout import (
     CURRENT_LAYOUT,
+    last_column,
     LEGACY_LAYOUT,
     SheetLayout,
     col_letter,
     offsets,
 )
 from src.services.total_sales_service import (
+    build_month_sheet_name,
     find_monthly_file_sheet_name,
     find_monthly_sheet_name,
 )
@@ -363,6 +365,131 @@ def create_monthly_expense_sheet(
             book.app.quit()
 
 
+# ── 월별 총매 파일 시트 생성 ────────────────────────────────────────────────
+# 월별 총매는 데일리와 같은 양식이라 부가세 수식이 들어 있다. clear_contents로
+# 싹 지우면 수식까지 날아가므로, 수식 칸은 그대로 두고 값만 비운다.
+
+_MONTHLY_FILE_LAST_ROW = 500
+
+
+def _clear_keep_formulas(
+    sheet, first_row: int, last_row: int, first_col: int, last_col: int,
+    keep_cols: set[int] | None = None,
+) -> None:
+    """범위의 값만 비우고 수식은 남긴다. keep_cols에 든 열은 통째로 보존한다."""
+    keep_cols = keep_cols or set()
+    target = sheet.range((first_row, first_col), (last_row, last_col))
+    formulas = target.formula
+    if formulas and not isinstance(formulas[0], (list, tuple)):
+        formulas = [formulas]
+
+    cleaned = []
+    for row in formulas:
+        kept = []
+        for index, value in enumerate(row):
+            column = first_col + index
+            is_formula = isinstance(value, str) and value.startswith("=")
+            kept.append(value if (is_formula or column in keep_cols) else None)
+        cleaned.append(kept)
+    target.value = cleaned
+
+
+def _find_template_sheet(book, year: int, month: int, kind: str):
+    """가장 가까운 이전 달 시트를 템플릿으로 찾는다. 최대 12개월 거슬러 올라간다."""
+    names = [s.name for s in book.sheets]
+    for delta in range(1, 13):
+        past_month, past_year = month - delta, year
+        while past_month <= 0:
+            past_month += 12
+            past_year -= 1
+        try:
+            return book.sheets[
+                find_monthly_file_sheet_name(names, past_year, past_month, kind)
+            ]
+        except ValueError:
+            continue
+    return None
+
+
+def _month_sheet_in_book(book, year: int, month: int, kind: str) -> str:
+    """열려 있는 book에서 해당 연월 시트를 찾고, 없으면 전월 시트를 복사해 만든다."""
+    try:
+        return find_monthly_file_sheet_name(
+            [s.name for s in book.sheets], year, month, kind
+        )
+    except ValueError:
+        pass
+
+    template = _find_template_sheet(book, year, month, kind)
+    if template is None:
+        raise ValueError(
+            f"월별 총매 파일에 이전 달 {kind} 시트가 없어 "
+            f"{year % 100:02d}.{month}월{kind} 시트를 만들 수 없습니다.\n"
+            "시트를 하나 직접 만들어 두시면 다음 달부터 자동으로 생성됩니다."
+        )
+
+    new_name = build_month_sheet_name(template.name, year, month)
+    template.copy(after=book.sheets[-1])
+    new_sheet = book.sheets[-1]
+    new_sheet.name = new_name
+
+    if kind == "매출":
+        _clear_keep_formulas(
+            new_sheet, 12, _MONTHLY_FILE_LAST_ROW, 2, last_column(CURRENT_LAYOUT)
+        )
+    else:
+        # 지출은 데일리지출과 같은 양식 — B열 순번은 남긴다
+        _clear_keep_formulas(new_sheet, 6, _MONTHLY_FILE_LAST_ROW, 1, 10, keep_cols={2})
+
+    return new_name
+
+
+def create_monthly_file_sheet(
+    monthly_path: str | Path,
+    year: int,
+    month: int,
+    kind: str = "매출",
+    password: str | None = None,
+) -> str:
+    """월별 총매 파일에 해당 연월 시트가 없으면 전월 시트를 복사해 만든다.
+
+    시트명 표기(구분자·0 채움)는 템플릿을 그대로 따른다.
+    이미 있으면 기존 이름을 돌려준다.
+    """
+    book, was_open = _open_book(monthly_path, password=password)
+    try:
+        name = _month_sheet_in_book(book, year, month, kind)
+        book.save()
+        return name
+    finally:
+        if not was_open:
+            book.app.quit()
+
+
+def ensure_monthly_file_sheets(
+    monthly_path: str | Path,
+    year: int,
+    month: int,
+    password: str | None = None,
+) -> list[str]:
+    """월별 총매 파일의 매출·지출 시트를 모두 준비하고, 새로 만든 것만 돌려준다."""
+    book, was_open = _open_book(monthly_path, password=password)
+    try:
+        created: list[str] = []
+        for kind in ("매출", "지출"):
+            names = [s.name for s in book.sheets]
+            try:
+                find_monthly_file_sheet_name(names, year, month, kind)
+            except ValueError:
+                created.append(_month_sheet_in_book(book, year, month, kind))
+        if created:
+            book.save()
+        return created
+    finally:
+        if not was_open:
+            book.app.quit()
+
+
 # ── 공개 API ────────────────────────────────────────────────────────────────
 
 def write_entry_to_daily(
@@ -445,9 +572,9 @@ def write_entry_to_monthly_total(
     """
     book, was_open = _open_book(monthly_path, password=password)
     try:
-        sheet_name = find_monthly_file_sheet_name(
-            [s.name for s in book.sheets],
-            entry.entry_date.year, entry.entry_date.month, "매출",
+        # 시트가 없으면 먼저 만든다. 달이 바뀌었다고 매출 입력이 막히면 안 된다.
+        sheet_name = _month_sheet_in_book(
+            book, entry.entry_date.year, entry.entry_date.month, "매출"
         )
         sheet = book.sheets[sheet_name]
 

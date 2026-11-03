@@ -286,3 +286,172 @@ class TestNextDayFileClearing:
         for cell in ("D12", "E12", "F12", "G12", "H12", "N12",
                      "S12", "T12", "U12", "V12", "AB12"):
             assert ws2[cell].value is None, f"{cell}이 지워지지 않았습니다"
+
+
+class TestMonthSheetName:
+    """월별 총매 파일의 시트명 표기는 파일마다 다르다 — 템플릿을 그대로 따라야 한다."""
+
+    @pytest.mark.parametrize(
+        ("template", "year", "month", "expected"),
+        [
+            ("26.10월매출", 2026, 11, "26.11월매출"),
+            ("26.10월지출", 2026, 11, "26.11월지출"),
+            ("26.09월매출", 2026, 10, "26.10월매출"),   # 0 채움 유지
+            ("26.12월매출", 2027, 1, "27.1월매출"),     # 연말 넘김
+            ("26년 10월 매출", 2026, 11, "26년 11월 매출"),  # 구분자 유지
+        ],
+    )
+    def test_follows_template_style(self, template, year, month, expected):
+        from src.services.total_sales_service import build_month_sheet_name
+
+        assert build_month_sheet_name(template, year, month) == expected
+
+    def test_rejects_name_without_month(self):
+        from src.services.total_sales_service import build_month_sheet_name
+
+        with pytest.raises(ValueError, match="연·월"):
+            build_month_sheet_name("표지", 2026, 11)
+
+
+class _FakeRange:
+    """xlwings Range 중 formula 읽기와 value 쓰기만 흉내낸다."""
+
+    def __init__(self, formulas):
+        self.formula = formulas
+        self.value = None
+
+
+class _FakeSheet:
+    def __init__(self, formulas):
+        self._range = _FakeRange(formulas)
+        self.requested = None
+
+    def range(self, start, end):
+        self.requested = (start, end)
+        return self._range
+
+
+class TestClearKeepFormulas:
+    """새 달 시트를 만들 때 값만 비워야 한다 — 부가세 수식까지 날리면 양식이 깨진다."""
+
+    def test_keeps_formulas_and_clears_values(self):
+        from src.services.entry_service import _clear_keep_formulas
+
+        sheet = _FakeSheet([
+            ["홍길동", "헬스", "=H12/11*10", 300000],
+            ["", "", "=H13/11*10", ""],
+        ])
+
+        _clear_keep_formulas(sheet, 12, 13, 2, 5)
+
+        assert sheet._range.value == [
+            [None, None, "=H12/11*10", None],
+            [None, None, "=H13/11*10", None],
+        ]
+
+    def test_keeps_whole_column_when_asked(self):
+        """지출 시트의 B열 순번은 값이라도 남겨야 한다."""
+        from src.services.entry_service import _clear_keep_formulas
+
+        sheet = _FakeSheet([[1, "간식대", "커피", 5000]])
+
+        _clear_keep_formulas(sheet, 6, 6, 2, 5, keep_cols={2})
+
+        assert sheet._range.value == [[1, None, None, None]]
+
+    def test_handles_single_row_result(self):
+        """xlwings가 한 줄 범위를 평평한 튜플로 돌려줘도 깨지지 않아야 한다."""
+        from src.services.entry_service import _clear_keep_formulas
+
+        sheet = _FakeSheet(("값", "=SUM(A1)"))
+
+        _clear_keep_formulas(sheet, 12, 12, 2, 3)
+
+        assert sheet._range.value == [[None, "=SUM(A1)"]]
+
+
+class _FakeWorkSheet(_FakeSheet):
+    def __init__(self, name, formulas=None):
+        super().__init__(formulas or [[None]])
+        self.name = name
+        self.copied_after = None
+
+    def copy(self, after=None):
+        self.copied_after = after
+        clone = _FakeWorkSheet(self.name + " (복사본)", self._range.formula)
+        after._book.sheets.append(clone)
+        return clone
+
+
+class _FakeSheets(list):
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return next(s for s in self if s.name == key)
+        return list.__getitem__(self, key)
+
+
+class _FakeBook:
+    def __init__(self, names):
+        self.sheets = _FakeSheets(_FakeWorkSheet(n) for n in names)
+        for sheet in self.sheets:
+            sheet._book = self
+        self.saved = False
+
+    def save(self):
+        self.saved = True
+
+
+class TestMonthlyFileSheetCreation:
+    """11월이 됐는데 월별 총매에 11월 시트가 안 생겨 결제 입력이 막혔다."""
+
+    def test_returns_existing_sheet_untouched(self):
+        from src.services.entry_service import _month_sheet_in_book
+
+        book = _FakeBook(["표지", "26.10월매출", "26.11월매출"])
+
+        assert _month_sheet_in_book(book, 2026, 11, "매출") == "26.11월매출"
+        assert len(book.sheets) == 3      # 새로 만들지 않는다
+
+    def test_creates_from_previous_month(self):
+        from src.services.entry_service import _month_sheet_in_book
+
+        book = _FakeBook(["표지", "26.10월매출", "26.10월지출"])
+
+        name = _month_sheet_in_book(book, 2026, 11, "매출")
+
+        assert name == "26.11월매출"
+        assert [s.name for s in book.sheets][-1] == "26.11월매출"
+
+    def test_expense_sheet_is_separate_from_sales(self):
+        from src.services.entry_service import _month_sheet_in_book
+
+        book = _FakeBook(["26.10월매출", "26.10월지출"])
+
+        assert _month_sheet_in_book(book, 2026, 11, "지출") == "26.11월지출"
+
+    def test_skips_back_further_when_a_month_is_missing(self):
+        """9월만 있고 10월이 비어 있어도 11월을 만들 수 있어야 한다."""
+        from src.services.entry_service import _month_sheet_in_book
+
+        book = _FakeBook(["26.9월매출"])
+
+        assert _month_sheet_in_book(book, 2026, 11, "매출") == "26.11월매출"
+
+    def test_explains_what_to_do_when_no_template_exists(self):
+        from src.services.entry_service import _month_sheet_in_book
+
+        book = _FakeBook(["표지"])
+
+        with pytest.raises(ValueError, match="직접 만들어"):
+            _month_sheet_in_book(book, 2026, 11, "매출")
+
+    def test_ensure_reports_only_newly_created(self, monkeypatch):
+        from src.services import entry_service
+
+        book = _FakeBook(["26.10월매출", "26.10월지출", "26.11월매출"])
+        monkeypatch.setattr(entry_service, "_open_book", lambda *a, **k: (book, True))
+
+        created = entry_service.ensure_monthly_file_sheets("x.xlsx", 2026, 11)
+
+        assert created == ["26.11월지출"]   # 이미 있는 매출은 빼고
+        assert book.saved

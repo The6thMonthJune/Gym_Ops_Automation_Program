@@ -17,10 +17,7 @@ from pathlib import Path
 
 import xlwings as xw
 
-from src.services.total_sales_service import (
-    find_monthly_expense_sheet_name,
-    find_monthly_file_sheet_name,
-)
+from src.services.total_sales_service import find_monthly_expense_sheet_name
 
 # 데이터 시작 행
 _DAILY_START_ROW = 6
@@ -164,11 +161,13 @@ def write_expense_to_monthly_total(
     양식은 데일리와 같으므로 데이터 시작 행도 동일하다.
     Returns: 기록된 행 번호
     """
+    from src.services.entry_service import _month_sheet_in_book
+
     book, was_open = _open_book_with_password(monthly_path, password)
     try:
-        sheet_name = find_monthly_file_sheet_name(
-            [s.name for s in book.sheets],
-            entry.entry_date.year, entry.entry_date.month, "지출",
+        # 시트가 없으면 먼저 만든다 — 달이 바뀌었다고 지출 입력이 막히면 안 된다.
+        sheet_name = _month_sheet_in_book(
+            book, entry.entry_date.year, entry.entry_date.month, "지출"
         )
         row_num = _write_row(book.sheets[sheet_name], entry, _DAILY_START_ROW)
         book.save()
